@@ -1,0 +1,174 @@
+\documentclass[a4paper,11pt]{article}
+
+% Encodage et langue
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{bm}
+
+% Maths et symboles
+\usepackage{amsmath, amssymb}
+
+% Mise en page
+\usepackage{geometry}
+\geometry{margin=2cm}
+
+% Code source
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+    language=Python,
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    frame=single,
+    breaklines=true
+}
+
+\title{Correction TP - Filtrage et restauration}
+\author{Rothlingshofer Yanic}
+
+
+% Document
+\begin{document}
+\maketitle
+
+\section{Problème}
+Nous considérerons le problème d'une image floutée selon le modèle suivant : 
+$$v = h*u + b$$
+où $u$ est l'image originale (la scène réelle), $h$ est le noyau de flou qui s'applique uniformément à l'image, $b$ un bruit impulsionnel et $v$ l'image floutée. Nous prendrons $u$ et $v$ des fonctions de $\mathbb{R}^2$ dans $\mathbb{R}^2$. Nous allons développer la méthode de Goldstein-Fattal qui se résume en cinq grandes étapes : 
+\begin{enumerate}
+\item Étant donné un modèle de décroissance bien choisi du spectre de $u$, on peut estimer la puissance de la transformée du noyau de flou.
+\item Pour cela on calcule l'autocorrélation de la shear projection (projection de cisaillement) de la dérivée directionnelle selon un angle $\theta$ de l'image $v$ puis on estime son support en prenant les minimum avec une continuité de lipshitz. Puis on estime la puissance du noyau à partir du calcule précédent sur le support estimé.
+\item Une fois le support le support et la puissance spectrale du noyau estimés on cherche à déterminer la phase dans une direction donnée (pour un vecteur fréquence du plan).
+\item On détermine ensuite l'ensemble de la phase du noyau.
+\item On recalcule le support du noyau de flou.
+\end{enumerate}
+
+
+\section{Estimation du noyau de flou}
+
+\subsection{Modèle sur le spectre et résultats fondamentaux}
+
+On fait l'hypothèse que la puissance de la transformée de fourier de $u$ adopte le modèle de décroissance anisotropique suivant selon $\boldsymbol{\xi} \in \mathbb{R}^2$ : 
+$$|\hat{u}(\boldsymbol{\xi})|^2 = \frac{1}{\varepsilon + c_{\boldsymbol{\xi}}\|\boldsymbol{\xi}\|^2}$$
+qui peut se réécrire de manière directionnelle en notant $\boldsymbol{\xi}= \xi \boldsymbol{n_{\theta}}$ avec $\boldsymbol{n_{\theta}} = \frac{\boldsymbol{\xi}}{\|\bm{\xi}\|} = (\cos(\theta),\sin(\theta))$ : 
+$$| \hat{u}_{\theta}(\xi\bm{n_{\theta}})|^2 = \frac{1}{\varepsilon + c_{\theta}\xi^2}$$
+avec $\varepsilon>0$ très petit pour la régularité en $0$. Dans ces conditions, on peut montrer sous certaines hypothèses que : 
+$$\left|\widehat{D_{\theta}v}(\xi\bm{n_{\theta})}\right|^2 = c_{\theta}|\hat{h}(\xi\bm{n_{\theta}})|^2 + \hat{r_{\theta}^{\varepsilon}}(|\xi|)$$
+Enfin en utilisant les propriétés de l'autocorrélation et de la shear projection en fourier, on a : 
+$$\widehat{R(P_{\theta}(D_{\theta}v))}(\xi) = \widehat{R(P_{\theta}(h)}(\xi) + \hat{r_{\theta}^{\varepsilon}}\left(\frac{|\xi|}{\cos(\theta)}\right)$$
+En appliquant la transformée de Fourier inverse et en approximant $|\cos(\theta)|r_{\theta}^{\varepsilon}(x)$ à une constante de $\theta$, on obtient : 
+$$R(P_{\theta}(D_{\theta}v))(x) = c_{\theta}R(P_{\theta}(h))(x) + \mu_{\theta}$$
+En supposant la positivité du noyau et qu'il soit à support compact on peut soustraire la valeur minimale et se débarasser de la constante puis par considérations de normalisation du noyau sur son support et par invariance de la norme au regard de la shear projection et de l'autocorrélation on peut faire disparaître $c_{\theta}$. Tout ceci nous permet d'obtenir l'estimation suivante : 
+$$\widehat{R(P_{\theta}(D_{\theta}v)}(\xi) = \widehat{R(P_{\theta}(h))}(\xi\cos(\theta)) =  |h(\xi\bm{n_{\theta}})|^2$$
+C'est de ce résultat fondamental que tout découle.
+
+\subsection{Estimation du support et de la puissance du noyau}
+On a dit précédement qu'en soustrayant la valeur minimale de $R(P_{\theta}(D_{\theta}v))(x)$ on peut se débarasser de la constante soit $\mu_{\theta} \simeq R(P_{\theta}(D_{\theta}v))(s_{\theta})$ où $s_{\theta}= \text{argmin}_{x\in \mathbb{R}}R(P_{\theta}(D_{\theta}v))(x)$. On en déduit l'algorithme suivant : 
+\begin{enumerate}
+\item On définit un ensemble de directions $\Theta$ sur lesquels on fera les calculs de dérivées et de projections.
+\item On calcule les $R(P_{\theta}(D_{\theta}v))(x)$ pour chaque $\theta \in \Theta$.
+\item Pour chaque $\theta$, on estime $s_{\theta}$ en appliquant une conditione de continuité de lipshitz en prenant $s_{\theta}= \min_{\theta'\in \Theta}(s_{\theta},s_{\theta'} +\kappa |\theta-\theta'|)$ (en gros).
+\item On calcule $R(P_{\theta}(h))(x) = \max(0,R(P_{\theta}(D_{\theta}v))(x) - R(P_{\theta}(D_{\theta}v))(s_{\theta})) $ si $|x|<s_{\theta}$ et 0 sinon.
+\item On prend la transformée de Fourier inverse de $R(P_{\theta}(h))$ pour chaque $\theta\in \Theta$ et on reconstruit ainsi $|\hat{h}(\xi\bm{n_{\theta}})|^2$ pour chaque direction sur son support donné par $s_{\theta}$ dans la direction $\theta$.
+\end{enumerate}
+
+\subsection{Calcule de la phase}
+
+Pour une fois la puissance estimée, on va appliquer un algorithme pour estimer la phase de noyau. On effectue $N$ fois l'algorithme suivant :
+\begin{enumerate}
+\item On tire une phase aléatoire puis on reconstruit un noyau intermédiaire $g = \mathcal{F}^{-1}(|\hat{h}|e^{i\Phi(\hat{g})})$
+\item On impose certaines contraintes sur $g$ pour estimer $\tilde{h}$ afin de respecter la positivité, le support et la normalisation. On en profite également recalculer $R(P_{\theta}(\tilde{h}))$ afin de réévaluer le support.
+\item On retrouve l'image initiale par déconvolution TV en utilisant le noyau de flou $\tilde{h}$ estimée précédemment sur un patch de l'image floutée.
+\item On calcule un cout $c_j$ en évaluant la parcimonie du gradient de l'image retrouvée.
+\end{enumerate}
+
+On conserve le noyau $h=\tilde{h}$ qui a le cout le plus faible. L'idée est qu'en bouclant on améliore notre connaissance sur le support et que le fait de tirer des phases aléatoires va bien nous faire tomber sur un noyau candidat correcte.
+
+
+
+
+
+
+\section {Déconvolution par la méthode de Split-Bregman}
+
+\subsection{Problème}
+
+On suppose le noyau de flou connu $h$ et on cherche à retouver l'image réelle $u$ par le problème de minimisation suivant : 
+$$\hat{u} = \text{argmin}_u \|h*u-v \|_2^2 + \lambda\|\nabla u\|_1$$
+qu'on appelle problème de minimisation TV (total variation). On résout ce problème en appliquant la méthode de split-Bregmann qui consiste à résoudre le problème de minimisation suivant, à l'étape $k+1$ : 
+$$(u_{k+1},d_{k+1}) = \text{argmin}_{(u,d)}\|{h*u -v}\|_2^2 + \frac{\lambda}{2}\|d\|_1 + \frac{\gamma}{2} \|\nabla u_k - d_k - b_k\|_2^2  $$
+où $b_k$ est une variable auxiliaire constante qui caractérise l'erreur que l'on fait sur la contrainte $d=\nabla u$ à chaque itération. \\
+On initialise $d$ et $b$ à $0$
+
+\paragraph*{1. u-problem}
+On commence par résoudre le problème sur la variable $u$ à $d$ fixé. En supposant les images à conditions de bords symétriques, la solution est donnée par : 
+$$
+u = \mathcal{F}^{-1} \left[
+\frac{
+    \tfrac{\lambda}{\gamma} \, \overline{\mathcal{F}(h)} \cdot \mathcal{F}(Ev) 
+    - \mathcal{F}(E \, \mathrm{div}(d-b))
+}{
+    \tfrac{\lambda}{\gamma} \, |\mathcal{F}(h)|^{2} - \mathcal{F}(\Delta)
+}
+\right]
+$$
+où $Eu$ représente l'image $u$ symétrisée et $\Delta$ l'opérateur Laplacien.
+
+
+\paragraph*{2. d-problem}
+
+On résout ensuite sur la variable $d$ à $u$ fixé :
+$$d_{i,j} = \frac{\nabla u_{i,j} + b_{i,j}}{|\nabla u_{i,j} + b_{i,j}|}
+\max\{\,|\nabla u_{i,j} + b_{i,j}| - 1/\gamma, \, 0\}$$
+
+\paragraph*{3. Mise à jour de l'erreur}
+On met à jour l'erreur auxiliaire : 
+$$b^{k+1} = b^k + \nabla u - d$$
+\\
+On itère tant que $\|u_{k+1}-u_k\|_2 > \eta$, c'est-à-dire tant qu'on arrive à s'améliorer nettement à chaque itération.
+
+\paragraph*{Remarques} 
+Si le noyau est pair on peut travailler avec des DCT au lieu des TFD pour gagner en temps de calcul. On fixe $\gamma = 5$ et on impose un maximum de $140$ itérations. De plus, il est essentiel de préter attention aux conditions de bords, ici on travaille en symétrisant.
+
+
+
+
+
+
+
+
+
+
+\section{Résultats}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
