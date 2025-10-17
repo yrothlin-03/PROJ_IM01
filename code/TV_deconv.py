@@ -159,7 +159,7 @@ def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None):
 
     if tol is None:
         tol = norm(v_ext)/1e3
-    print(tol)                                                      
+    # print(tol)                                                      
     c=0
     for _ in range(max_iters):
         c += 1
