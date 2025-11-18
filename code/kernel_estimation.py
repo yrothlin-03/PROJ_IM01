@@ -152,13 +152,16 @@ def ComputeProjectionAngleSet(p: int):
 
 
 def ComputeProjectionsAutocorrelation(v: np.ndarray, angles: np.ndarray, p: int, alph: float):
-    """Compute per-angle autocorrelation of sheared gradient projections.
+    """Compute per-angle autocorrelation of sheared directional derivatives.
 
-    For each angle θ, we form the 1D projection q_θ by shearing the horizontal
-    and vertical derivatives and summing them, then compute the 1D
-    autocorrelation r_θ. We keep only the central window of length (2*p-1)
+    For each angle θ, we form the directional derivative
+        D_θ v = v_x cos(θ) + v_y sin(θ)
+    then compute its 1D shear projection q_θ and the 1D autocorrelation r_θ.
+    We keep only the central window of length (2*p-1)
     (lags from -(p-1) to +(p-1)) and apply an exponential taper
     exp(-alph * |lag|) to de-emphasize far lags.
+
+    This follows more closely Equation (43) and Algorithm 2 of the IPOL article.
 
     Parameters
     ----------
@@ -186,10 +189,13 @@ def ComputeProjectionsAutocorrelation(v: np.ndarray, angles: np.ndarray, p: int,
     R_list = []
 
     for theta in angles:
-        # Shear-projection of derivatives and accumulation along the shear axis
-        qx = _shear_project(vx, theta)
-        qy = _shear_project(vy, theta)
-        q = qx + qy
+        c = np.cos(theta)
+        s = np.sin(theta)
+        # Directional derivative D_theta v
+        Dtheta = c * vx + s * vy
+
+        # Shear-projection of D_theta v and accumulation along the shear axis
+        q = _shear_project(Dtheta, theta)
 
         # Autocorrelation (full), zero-lag at index len(q)-1
         r_full = _autocorr1D(q)
@@ -274,10 +280,12 @@ def EstimatePowerSpectrum(R: np.ndarray, S: np.ndarray, angles: np.ndarray):
     Steps (following the spirit of Algorithm 4):
       1) Enforce per-angle support using S (zero out |lag| > S[θ]).
       2) Median-filter across angles to stabilize noisy lines.
-      3) For each angle θ, compute the 1D power spectrum via FFT of the
-         autocorrelation (Wiener–Khinchin). Ensure nonnegativity and center.
-      4) Backproject these polar spectra using the provided angle set onto a square Cartesian grid.
-      5) Normalize the resulting 2D spectrum.
+      3) For each angle θ, subtract the value at lag s_θ and truncate at zero,
+         then optionally normalize the line so that its sum is 1.
+      4) For each angle θ, compute the 1D power spectrum via FFT of the
+         corrected autocorrelation (Wiener–Khinchin). Ensure nonnegativity and center.
+      5) Backproject these polar spectra using the provided angle set onto a square Cartesian grid.
+      6) Normalize the resulting 2D spectrum.
 
     Parameters
     ----------
@@ -314,27 +322,36 @@ def EstimatePowerSpectrum(R: np.ndarray, S: np.ndarray, angles: np.ndarray):
     # 2) Median filter across angles to reduce outliers
     R_filt = _median_filter(R_supported, np.arange(num_angles, dtype=np.float64))
 
-    # 3) 1D power spectrum per angle (Wiener–Khinchin)
-    # Move zero-lag to index 0 -> FFT -> keep real part -> ensure nonnegative -> center (fftshift)
-    polar_ps = np.zeros_like(R_filt, dtype=np.float64)
+    # 3) Per-angle offset subtraction at lag s_θ and truncation at zero,
+    #    then line-wise normalization (approximate compensation of c_θ, μ_θ).
+    R_corr = np.zeros_like(R_filt, dtype=np.float64)
     for i in range(num_angles):
-        r = R_filt[i]
-        # Normalize by zero-lag to avoid arbitrary scale differences (if nonzero)
-        if r[center] != 0:
-            r = r / float(r[center])
+        s = int(S[i])
+        idx = min(center + s, L - 1)
+        mu = R_filt[i, idx]
+        r = R_filt[i] - mu
+        r[r < 0] = 0.0
+        ssum = r.sum()
+        if ssum > 0:
+            r = r / ssum
+        R_corr[i] = r
+
+    # 4) 1D power spectrum per angle (Wiener–Khinchin)
+    polar_ps = np.zeros_like(R_corr, dtype=np.float64)
+    for i in range(num_angles):
+        r = R_corr[i]
+        # Move zero-lag to index 0 -> FFT -> keep real part -> ensure nonnegative -> center (fftshift)
         r0 = np.fft.ifftshift(r)
         ps = np.real(np.fft.fft(r0))
         ps = np.maximum(ps, 0.0)  # numerical floor
         polar_ps[i] = np.fft.fftshift(ps)
 
-    # 4) Backproject polar spectra onto Cartesian grid (nearest-neighbor)
+    # 5) Backproject polar spectra onto Cartesian grid (nearest-neighbor)
     P = np.zeros((L, L), dtype=np.float64)
     cx = cy = (L - 1) / 2.0
 
-    # Precompute for angle nearest-neighbor lookup
     A = np.asarray(angles, dtype=np.float64)
 
-    # Angle list monotonic assumption; build fast mapping by binning
     for y in range(L):
         dy = y - cy
         for x in range(L):
@@ -351,9 +368,9 @@ def EstimatePowerSpectrum(R: np.ndarray, S: np.ndarray, angles: np.ndarray):
             # Nearest angle index
             i = int(np.argmin(np.abs(A - theta)))
             k = int(np.rint(rho))
-            P[y, x] = polar_ps[i, (center - k) + center]  # index centered spectrum by radius
+            P[y, x] = polar_ps[i, (center - k) + center]
 
-    # 5) Normalize spectrum (scale-invariant)
+    # 6) Normalize spectrum (scale-invariant)
     m = P.max()
     if m > 0:
         P = P / m
@@ -586,6 +603,11 @@ def ReestimateSupport(h: np.ndarray, angles: np.ndarray):
     return S
 
 def blur_kernel_estimation(v: np.ndarray, K: np.ndarray, alph: float = 2.1, Nouter: int = 3):
+    """Estimate a blur kernel from a single blurred image v.
+    v : 2D array with values in [0, 1]
+    K : int or 2D array
+    """
+
     if isinstance(K, int):
         p = K
     else:
@@ -605,4 +627,6 @@ def blur_kernel_estimation(v: np.ndarray, K: np.ndarray, alph: float = 2.1, Nout
         S = ReestimateSupport(h, angles)
 
     return h
+
+
 

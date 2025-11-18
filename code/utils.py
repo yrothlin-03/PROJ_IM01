@@ -1,155 +1,204 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Optional
-from skimage import data
-import random as rd
+from skimage import data, io, img_as_ubyte
+from skimage.transform import resize
+from skimage.metrics import structural_similarity as ssim
+from pathlib import Path
 import os
+import imageio.v3 as iio
 
 
 
 
-
-class ImageHandler:
-
-    def __init__(self):
-      
-        self.image = None
-
-    def load_image(self, path: str, as_gray=True, normalize=True, random = False):
-        """Load an image from the specified path.
-        Args:
-            as_gray: if True and the image is RGB, convert to grayscale using luma coefficients.
-            normalize: if True, scale to [0,1] (only if max>0).
-        Returns:
-            np.ndarray float64 image.
-        """
-        if random:
-            availables = [data.astronaut(), data.camera(), data.coins(), data.moon(), data.page(), data.rocket(), data.text()]
-            img = rd.choice(availables)
+def load_test_data(mode: str = '00010'):
+    dir_path = Path(__file__).resolve().parent.parent / "data"
+    images_paths = [
+        dir_path / "taj_mahal.png",
+        dir_path / "IMG_2659.png",
+        dir_path / "arbres.png",
+        dir_path / "lena.tif",
+    ]
+    images = []
+    if mode[0]=='1':
+        images.append(data.astronaut().astype(np.float32) / 255.0)
+    for path in images_paths:
+        if path.exists():
+            if mode[images_paths.index(path)+1]=='1':
+                img = io.imread(path).astype(np.float32) / 255.0
+                images.append(img)
         else:
-            image_path = path
-            try:
-                img = plt.imread(image_path)
-            except:
-                raise FileNotFoundError(f"Image file not found: {image_path}")
-        img = img.astype(np.float32, copy=False)
-        if as_gray and img.ndim == 3:
-            img = np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
-        if normalize:
-            vmax = np.max(img)
-            if vmax > 0:
-                img = img / vmax
-        return img
+            raise FileNotFoundError(f"Warning: {path} does not exist.")
+    return images
+
+
+
     
-    def view_images(self, *images, titles: Optional[List[str]] = None, cmap: str = 'gray', cols: int = 3, figsize: tuple = (10, 4)):
-        """Display one or multiple images in a grid.
-        Args:
-            *images: images to display; if empty, displays self.image.
-            titles: optional list of titles (same length as images).
-            cmap: matplotlib colormap to use (for grayscale).
-            cols: number of columns in the grid.
-            figsize: figure size.
-        """
-        plt.close('all')
-        imgs = images if len(images) > 0 else (self.image,)
-        n = len(imgs)
-        cols = min(cols, n)
-        rows = int(np.ceil(n / cols))
+def view_images(*images, titles: Optional[List[str]] = None, cmap: str = 'gray', cols: int = 3, figsize: tuple = (14, 4), block: bool = False):
+    """Display one or multiple images in a grid."""
+    plt.close('all')
+    if len(images) > 0:
+        imgs = images
+    else:
+        raise ValueError("No images to display.")
+    n = len(imgs)
+    cols = min(cols, n)
+    rows = int(np.ceil(n / cols))
 
-        fig = plt.figure(figsize=figsize)
-        for idx, im in enumerate(imgs, start=1):
-            ax = fig.add_subplot(rows, cols, idx)
-            if im.ndim == 2:
-                ax.imshow(im, cmap=cmap)
-            else:
-                ax.imshow(im)
-            if titles and idx-1 < len(titles):
-                ax.set_title(titles[idx-1])
-            ax.axis('off')
-        plt.tight_layout()
-        plt.show()
-
-    def show(self, cmap: str = 'gray', title: Optional[str] = None):
-        """Quickly show the currently loaded image."""
-        plt.figure()
-        if self.image.ndim == 2:
-            plt.imshow(self.image, cmap=cmap)
+    fig = plt.figure(figsize=figsize)
+    for idx, im in enumerate(imgs, start=1):
+        ax = fig.add_subplot(rows, cols, idx)
+        if im.ndim == 2:
+            ax.imshow(im, cmap=cmap)
         else:
-            plt.imshow(self.image)
-        if title:
-            plt.title(title)
-        plt.axis('off')
-        plt.show()
+            ax.imshow(im)
+        if titles and idx-1 < len(titles):
+            ax.set_title(titles[idx-1])
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show(block=block)
 
-    def save(self, out_path: str, img: Optional[np.ndarray] = None, cmap: str = 'gray'):
-        """Save an image to disk. If img is None, saves the current image."""
-        arr = self.image if img is None else img
-        if np.issubdtype(arr.dtype, np.floating):
-            arr = np.clip(arr, 0.0, 1.0)
-        plt.imsave(out_path, arr, cmap=cmap if arr.ndim == 2 else None)
 
-    def to_gray(self, image: np.ndarray) -> np.ndarray:
-        """Convert an RGB image to grayscale using luma coefficients."""
-        if image.ndim == 3:
-            return np.dot(image[..., :3], [0.2989, 0.5870, 0.1140])
-        return image
 
-    def to_rgb(self, image: np.ndarray) -> np.ndarray:
-        """Convert a grayscale image to RGB by repeating the channels."""
-        if image.ndim == 2:
-            return np.stack([image] * 3, axis=-1)
-        return image
+
+def rgb_to_ycbcr(img: np.ndarray) -> np.ndarray:
+    if img.ndim != 3 or img.shape[2] != 3:
+        raise ValueError("L'image doit être RGB avec shape (H, W, 3).")
+
+    if np.max(img) > 1.0:
+        img = img.astype(np.float32) / 255.0 
+
+    R = img[..., 0]
+    G = img[..., 1]
+    B = img[..., 2]
+
+    Y  = 0.299 * R + 0.587 * G + 0.114 * B
+    Cb = -0.168736 * R - 0.331264 * G + 0.5 * B + 0.5
+    Cr = 0.5 * R - 0.418688 * G - 0.081312 * B + 0.5
+
+    ycbcr = np.stack((Y, Cb, Cr), axis=-1)
+    return np.clip(ycbcr, 0.0, 1.0).astype(np.float32)
+
+
+
+
+def ycbcr_to_rgb(ycbcr: np.ndarray) -> np.ndarray:
+    if ycbcr.ndim != 3 or ycbcr.shape[2] != 3:
+        raise ValueError("L'image doit être YCbCr avec shape (H, W, 3).")
+
+    Y  = ycbcr[..., 0]
+    Cb = ycbcr[..., 1] - 0.5
+    Cr = ycbcr[..., 2] - 0.5
+
+    R = Y + 1.402 * Cr
+    G = Y - 0.344136 * Cb - 0.714136 * Cr
+    B = Y + 1.772 * Cb
+
+    rgb = np.stack((R, G, B), axis=-1)
+    return np.clip(rgb, 0.0, 1.0).astype(np.float32)
     
-    def RGB_to_YCbCr(self, img: np.ndarray, normalized=True) -> np.ndarray:
-        """Convert an RGB image to YCbCr color space."""
-        if img.shape[2] == 3:
-            transform_matrix = np.array([[65.481, 128.553, 24.966],
-                                         [-37.797, -74.203, 112.0],
-                                         [112.0, -93.786, -18.214]])
-            shift = np.array([16, 128, 128])
-            if normalized:
-                ycbcr = img @ transform_matrix.T + shift
-                ycbcr = ycbcr / 255.0
-            else:
-                ycbcr = (img @ transform_matrix.T) / 255.0 + shift
-            return ycbcr
-        raise ValueError("Input image must be an RGB image with 3 channels.")
+
+
+def add_noise(image, mean: float=0, std: float = 1):
+    noise = np.random.normal(mean, std, size=image.shape)
+    noisy_image = image + noise
+    return np.clip(noisy_image, 0.0, 1.0) if image.max() <= 1.0 else np.clip(noisy_image, 0, 255)
     
-    def YCbCr_to_RGB(self, ycbcr: np.ndarray, Cr: Optional[np.ndarray] = None, Cb: Optional[np.ndarray] = None, normalized=True) -> np.ndarray:
-        # Attendu: ordre [Y, Cb, Cr]
-        if ycbcr.ndim == 2:
-            if Cr is None or Cb is None:
-                raise ValueError("Cr et Cb doivent être fournis si ycbcr est 2D (Y seul).")
-            ycbcr = np.stack([ycbcr, Cb, Cr], axis=-1)
 
-        if ycbcr.ndim != 3 or ycbcr.shape[2] != 3:
-            raise ValueError("Input YCbCr doit être (H,W,3) ou Y seul + Cb,Cr.")
 
-        if normalized:
-            Y  = ycbcr[:, :, 0] * 255.0
-            Cb = ycbcr[:, :, 1] * 255.0
-            Cr = ycbcr[:, :, 2] * 255.0
-        else:
-            Y, Cb, Cr = ycbcr[:, :, 0], ycbcr[:, :, 1], ycbcr[:, :, 2]
+def motion_blur_kernel(size: int, angle: float) -> np.ndarray:
+    """Generate a motion blur kernel of given size and angle."""
+    kernel = np.zeros((size, size), dtype=np.float32)
+    center = size // 2
+    angle = np.deg2rad(angle)
+    cos_a = np.cos(angle)
+    sin_a = np.sin(angle)
 
-        Y  = Y  - 16.0
-        Cb = Cb - 128.0
-        Cr = Cr - 128.0
+    for i in range(size):
+        x = int(center + (i - center) * cos_a)
+        y = int(center + (i - center) * sin_a)
+        if 0 <= x < size and 0 <= y < size:
+            kernel[y, x] = 1
 
-        R = 1.164 * Y + 1.596 * Cr
-        G = 1.164 * Y - 0.392 * Cb - 0.813 * Cr
-        B = 1.164 * Y + 2.017 * Cb
+    kernel /= np.sum(kernel)
+    return kernel
 
-        rgb8 = np.stack([R, G, B], axis=-1)
 
-        if normalized:
-            return np.clip(rgb8, 0.0, 255.0).astype(np.float32) / 255.0
-        else:
-            return np.clip(rgb8, 0, 255).astype(np.uint8)
+
+def downsampling(image, k: int = 2):
+    h, w = image.shape[:2]
+    return resize(image, (h // k, w // k), anti_aliasing=True)
+
+
+
+    
+def PSNR(original: np.ndarray, reconstructed: np.ndarray, max_pixel: float = 1.0) -> float:
+    """Compute the Peak Signal-to-Noise Ratio (PSNR) between two images."""
+    mse = np.mean((original - reconstructed) ** 2)
+    if mse == 0:
+        return float('inf')
+    return 20 * np.log10(max_pixel / np.sqrt(mse))
+
+def SNR(original: np.ndarray, reconstructed: np.ndarray) -> float:
+    """Compute the Signal-to-Noise Ratio (SNR) between two images."""
+    signal_power = np.mean(original ** 2)
+    noise_power = np.mean((original - reconstructed) ** 2)
+    if noise_power == 0:
+        return float('inf')
+    return 10 * np.log10(signal_power / noise_power)
+
+def SSIM(original: np.ndarray, reconstructed: np.ndarray) -> float:
+    """Compute the Structural Similarity Index (SSIM) between two images."""
+    if original.shape != reconstructed.shape:
+        raise ValueError("Original and reconstructed images must have the same shape for SSIM.")
+
+    original = original.astype(np.float32)
+    reconstructed = reconstructed.astype(np.float32)
+
+    h, w = original.shape[:2]
+    min_side = min(h, w)
+    if min_side < 3:
+        raise ValueError("Images are too small for SSIM (minimum side length is 3 pixels).")
+    win_size = 7 if min_side >= 7 else (min_side if min_side % 2 == 1 else min_side - 1)
+
+    if original.ndim == 3 and original.shape[2] == 3:
+        ssim_value = ssim(original, reconstructed, channel_axis=-1, win_size=win_size, data_range=1.0)
+    else:
+        ssim_value = ssim(original, reconstructed, win_size=win_size, data_range=1.0)
+
+    return ssim_value
+    
+
+def compute_metrics(u: np.ndarray, u_rec: np.ndarray) -> dict:
+    """Compute PSNR, SNR, and SSIM between two images."""
+    metrics = {
+        'PSNR': PSNR(u, u_rec),
+        'SNR': SNR(u, u_rec),
+        'SSIM': SSIM(u, u_rec)
+    }
+    return metrics
+
+
+def png_to_jpeg(img: np.ndarray, quality: int = 90) -> np.ndarray:
+    """Convert a PNG image to JPEG format with specified quality."""
+    img_uint8 = img_as_ubyte(img)
+    iio.imwrite("temp.jpg", img_uint8, quality=quality)
+    jpeg_img = io.imread("temp.jpg").astype(np.float32) / 255.0
+    os.remove("temp.jpg")
+    return jpeg_img
+
+
+
+
+
+def gaussian_kernel(n, s):
+    a = np.arange(-(n//2), n//2+1)
+    X, Y = np.meshgrid(a, a)
+    k = np.exp(-(X*X + Y*Y)/(2*s*s))
+    return k / k.sum()
+
+
+
 
 if __name__ == "__main__":
-    cwd = os.getcwd()
-    path = ""
-    handler = ImageHandler()
-    img = handler.load_image(path, as_gray=True, normalize=True, random = True)
-    handler.view_images(img, titles=["Loaded Image"])
+    pass

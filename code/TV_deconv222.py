@@ -19,11 +19,11 @@ conj = np.conj
 pi = np.pi
 
 #%% Test for loading data
-path = Path.cwd()
+path = Path(__file__).resolve().parent.parent / "data"
 
 def load_image(name, as_gray=True):
     """Load an image from the data folder."""
-    img = io.imread(path / 'images' / name, as_gray=as_gray)
+    img = io.imread(path / name, as_gray=as_gray)
     return img.astype(np.float32) / 255.0
 
 def view_image(*images, titles=None, dpi=300, cmap='gray'):

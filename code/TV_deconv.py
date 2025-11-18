@@ -19,53 +19,60 @@ pi = np.pi
 
 
 
-def Fourier_kernel(K,s):
-    assert K.shape[0]%2==1 and K.shape[1]%2==1, "Taille de noyau non impaire"
-    Kf=np.zeros(s)
-    Ky,Kx=K.shape
-    Kx2=Kx//2
-    Ky2=Ky//2
-    Kf[:Ky2+1,:Kx2+1]=K[Ky2:,Kx2:]
-    Kf[:Ky2+1,-Kx2:]=K[Ky2:,:Kx2]
-    Kf[-Ky2:,:Kx2+1]=K[:Ky2,Kx2:]
-    Kf[-Ky2:,-Kx2:]=K[:Ky2,:Kx2]
-    return fft2(Kf)
+def pad_images(img, pad_width):
+    if img.ndim == 3 and img.shape[2] in (1, 3):
+        H, W = img.shape[:2]
+    else:
+        H, W = img.shape
+    padded_img = np.pad(img, ((pad_width, pad_width), (pad_width, pad_width), (0, 0)) if img.ndim == 3 else ((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')
+    return padded_img
 
 
-def pad_image(im,pad=10):
-    out=np.zeros((im.shape[0]+2*pad,im.shape[1]+2*pad))
-    out[pad:-pad,pad:-pad]=im
-    for k in range(pad):
-        out[k,pad:-pad]=im[0,:]
-        out[-k-1,pad:-pad]=im[-1,:]
-        out[pad:-pad,k]=im[:,0]
-        out[pad:-pad,-k-1]=im[:,-1]
-    out[:pad,:pad]=im[0,0]
-    out[-pad:,:pad]=im[-1,0]
-    out[:pad,-pad:]=im[0,-1]
-    out[-pad:,-pad:]=im[-1,-1]
-    return out
+def unpad_images(padded_img, pad_width):
+    if padded_img.ndim == 3 and padded_img.shape[2] in (1, 3):
+        return padded_img[pad_width:-pad_width, pad_width:-pad_width, :]
+    else:
+        return padded_img[pad_width:-pad_width, pad_width:-pad_width]
 
-def unpad_image(im,pad=10):
-    return im[pad:-pad,pad:-pad].copy()
 
-def taper_image(I,K):
-    """ Floute une image I par le noyau K (circulairement) cela donne une image J
-    On mélange l'image I avec l'image J de manière à ce que J soit prépondérente aux bords.
-    L'image J, lorsqu'on la déconle par le noyau K n'aura pas d'effets de bord. """
-    kh,kw=K.shape
-    Ih,Iw=I.shape
-    wx=np.ones((Ih,Iw),dtype=np.float32)
-    wy=np.ones((Ih,Iw),dtype=np.float32)
-    X,Y=np.meshgrid(np.arange(0,Iw),np.arange(0,Ih))
-    wy[:kh,:]=sin(Y[:kh,:]*pi/(2*kh-1))**2
-    wy[-kh:,:]=sin((Ih-Y[-kh:,:])*pi/(2*kh-1))**2
-    wx[:,:kw]=sin(X[:,:kw]*pi/(2*kh-1))**2
-    wx[:,-kw:]=sin((Iw-X[:,-kw:])*pi/(2*kh-1))**2
-    fK=Fourier_kernel(K,I.shape)
-    J=real(ifft2(fft2(I)*fK))
-    out=J*(1-wx*wy)+I*(wx*wy)
-    return out
+def tukey_window(n, alpha=0.5):
+    w = np.ones(n)
+    edge = int(alpha * n / 2)
+    if edge > 0:
+        t = np.linspace(0, np.pi, edge)
+        w[:edge] = 0.5 * (1 - np.cos(t))
+        w[-edge:] = 0.5 * (1 - np.cos(t[::-1]))
+    return w
+
+def tapper(img, kernel=None, margin=None):
+    if img.ndim == 3 and img.shape[2] in (1, 3):
+        H, W = img.shape[:2]
+    else:
+        H, W = img.shape
+
+    if margin is None:
+        margin = max(8, min(H, W) // 10)
+
+    wy = tukey_window(H, alpha=margin / H)
+    wx = tukey_window(W, alpha=margin / W)
+    window = np.outer(wy, wx).astype(img.dtype, copy=False)
+
+
+    if kernel is None:
+        return (window[..., None] * img) if img.ndim == 3 else (window * img)
+
+
+    if img.ndim == 2:
+        blurred = convolve2d(img, kernel, mode="same", boundary="symm")
+        return window * img + (1.0 - window) * blurred
+    else:
+
+        out = np.empty_like(img)
+        for c in range(img.shape[2]):
+            blurred_c = convolve2d(img[:, :, c], kernel, mode="same", boundary="symm")
+            out[:, :, c] = window * img[:, :, c] + (1.0 - window) * blurred_c
+        return out
+
 
 def sym_grad(u):
     """Compute the gradient of u with symmetric boundary conditions."""
@@ -140,9 +147,15 @@ def extend_kernel(K, shape):
 
 
 
-def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None):
-    
-    N, M = v.shape
+def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None, add_tapping = True):
+
+    if add_tapping:
+        v = pad_images(v, pad_width=50).astype(np.float32, copy=False)
+        v_in = tapper(v, K)
+    else:
+        v_in = v
+
+    N, M = v_in.shape
     u = np.zeros((N, M), dtype=np.float32)
     d = (np.zeros((N, M), dtype=np.float32), np.zeros((N, M), dtype=np.float32))
     b = (np.zeros((N, M), dtype=np.float32), np.zeros((N, M), dtype=np.float32))
@@ -153,7 +166,7 @@ def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None):
     LAP[0, 0] = 4
     LAP[1, 0] = LAP[-1, 0] = LAP[0, 1] = LAP[0, -1] = -1
     FDelta = -np.real(fft(LAP))
-    v_ext = extended_sym(v)
+    v_ext = extended_sym(v_in)
     fft_vext = fft(v_ext)
     denom = (lam / gamma) * (np.abs(fft_K) ** 2) - FDelta + 1e-8
 
@@ -164,7 +177,7 @@ def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None):
     for _ in range(max_iters):
         c += 1
         u_prev = u
-        u_new = u_prob(v,conj_fft_K, d, b, lam, gamma, denom, fft_vext=fft_vext)
+        u_new = u_prob(v_in,conj_fft_K, d, b, lam, gamma, denom, fft_vext=fft_vext)
         (gx, gy), d_new = d_prob(u_new, b, gamma)
         b = (b[0] + (gx - d_new[0]),
              b[1] + (gy - d_new[1]))
@@ -175,4 +188,6 @@ def tv_deconv(v, K, lam=1000, gamma = 5, max_iters = 140, tol = None):
         u = u_new
         d = d_new
     # print(c)
+    if add_tapping:
+        u = unpad_images(u, pad_width=50)
     return u, c  
