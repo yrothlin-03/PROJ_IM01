@@ -1,0 +1,1 @@
+python3 ./code/main.py -input_image ./blurred_image.png -output_kernel ./estimated_kernel.npy -output_deconvolved ./deconvolved_image.png

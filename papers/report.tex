@@ -8,6 +8,8 @@
 
 % Maths et symboles
 \usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{float}
 
 % Mise en page
 \usepackage{geometry}
@@ -24,8 +26,8 @@
     breaklines=true
 }
 
-\title{Rapport - Restauration d'images par problème inverse avec estimation de noyau}
-\author{Rothlingshofer Yanic}
+\title{Report - Image Restoration by Inverse Problem with Kernel Estimation}
+\author{Rothlingshofer Yanic, Douar Lounes}
 
 
 % Document
@@ -35,11 +37,439 @@
 
 \section{Introduction}
 
+Cameras and photographic equipment overall have seen significant improvements over the last decades.
+However, to be able to capture high-quality images in all conditions remains a challenge.
+In particular, you need to have sufficient time exposure to capture enough light, which can lead to motion blur
+if the camera or the subject moves during the exposure.
+To address this issue, various image restoration techniques have been developed over the years.
+Since the advent of deep learning, most state-of-the-art methods now rely on neural networks trained on large datasets of images.
+However, these methods often require significant computational ressources and need a huge amount of training data to generalize well.
+That is why there exists also a class of more traditional methods that rely on mathematical approaches. The main methods being based on bayesian of MAP approaches, on sparsity priors models or 
+on variational methods and try to recover the image and the blur kernel at the same time.
+In this report, we focus on a variational approach that separates the blur kernel estimation from the image restoration.
+That is, we first estimate the blur kernel from the blurred image using prior knowledge on the spectre of images. 
+Then we deconvolve the image using the estimated kernel in a minimization framework with total variation regularization using the split-bregman method which will be briefly detailed.
+This approach has the advantage of being interpretable and not requiring any training data.
+We will present the mathematical formulation of the problem, the kernel estimation method, and the results obtained
+
+\subsection{Mathematical Model for deblurring}
+In most methods for image deblurring, we assume that the motion blur can be modeled as a uniform linear motion which leads to a convolution model. 
+However this model has its limitations since real-world blurs can usually be described as 3D rotations of the camera which leads to non-uniform blurs.
+In this report we will focus on uniform blurs. To this extent, given a sharp image $u\in \mathbb{R}^2$ and a blur kernel $k\in \mathbb{R}^2$, the blurred image $v\in \mathbb{R}^2$ follows the equation :
+$$
+v = u * k + b
+$$
+where $b$ is an additive impulse noise.
+From this model, two goals :
+\begin{itemize}
+    \item Estimate the blur kernel $k$ from the blurred image $v$.
+    \item Restore the sharp image $u$ from the blurred image $v$ and the estimated kernel $k$.
+    \item Both these problems are ill-posed and require the use of priors or regularization terms to obtain satisfying results.
+\end{itemize}
+For kernel estimation, we will use the prior knowledge that natural images have a characteristic power spectrum that decreases with frequency with a certain model.
+The main idea is that by blurring an image we transform its power spectrum, especially on high frequencies. So by supposing a model for the power spectrum, the kernel will leave traces in the spectrum that can be revealed using a derivative filter.
+This way we obtain an estimation of the modul of the kernel's fourier transform and we can recover the kernel by drawing random phases and keep the one with better results.
+For image restoration, we will use a variational approach with total variation regularization. TV regularization is a way to preserve edges and to model a constraint for natural images (it reduces Gibbs oscillation due to deconvolution). That is : 
+$$\hat{u} = \arg\min_u \frac{1}{2}\|u*k - v\|_2^2 + \lambda \| \nabla u \|_1$$
+We will solve this problem using the split-Bregman method which separates the problem into two subproblems. 
+First we introduce an auxiliary variable $d$ and we minimize such that $d = \nabla u$. Then we minimise the previous equation with $d=\nabla u$ (+ an error term).
+
+
 \section{Kernel Estimation Method}
 
-\section{Results and Discussion}
+Given a frequency vector $\bm{\xi}\in \mathbb{R}^2$ different than $0$, we denote $\mathbf{n}_{\theta} = \frac{\bm{\xi}}{\|\bm{\xi}\|} = (\cos(\theta),\sin(\theta))$.\\
+We suppose the that the power spectrum of a natural image $u$ adopt the following decay law : 
+$$
+|\hat{u}(\bm{\xi})|^2 = \frac{1}{\epsilon + c_\theta\|\bm{\xi}\|^{2}}
+$$
+where $c_\theta>0$ and $\epsilon>0$ are constants.
+The idea is to extend the isotropic model (where $c$ is independent of $\theta$) to an anisotropic model where $c_\theta$ depends on the direction $\theta$.
+This way, we can capture more information about the image structure and on which direction the blur kernel has more impact.\\
+We suppose that the blurred kernel $h$ is \textbf{non-negative}, \textbf{normalized} and has a \textbf{compact support}.
+Now, let us suppose that an image $u$ has enough regularity to take its directional derivative with regard to the vector $\mathbf{n}_{\theta}$. Then we have that : 
+$$\mathcal{F}(D_{\theta}u(\bm{\xi})) = i(\bm{\xi}\cdot \mathbf{n}_{\theta})\hat{u}(\bm{\xi})$$
+Hence with $v = h*u$ : 
+\begin{align*}
+|\mathcal{F}(D_{\theta}v)(\bm{\xi}_\theta)|^2 
+&= |i(\bm{\xi}_\theta \cdot \mathbf{n}_{\theta})|^2 \, |\hat{v}(\bm{\xi}_\theta)|^2 \\
+&= |\bm{\xi}_\theta|^2 \, |\hat{u}(\bm{\xi}_\theta)|^2 \, |\hat{h}(\bm{\xi}_\theta)|^2 \\
+&= |\bm{\xi}_\theta|^2 \cdot \frac{1}{\epsilon + c_\theta^{-1} |\bm{\xi}_\theta|^2} \, |\hat{h}(\bm{\xi}_\theta)|^2 \\
+&= c_\theta \, |\hat{h}(\bm{\xi}_\theta)|^2 \left( 1 - \frac{\epsilon c_\theta}{\epsilon c_\theta + |\bm{\xi}_\theta|^2} \right) \\
+&= c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 - c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 \frac{\epsilon c_\theta}{\epsilon c_\theta + |\bm{\xi}_\theta|^2} \\
+&= c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|),
+\end{align*}
+Now, using autocorrelation $R$ and the Parseval's theorem ($\mathcal{F}((R)(f))(\xi) =|\hat{f}(\xi)|^2$), we have :
+$$
+\mathcal{F}((R)(D_{\theta}v))(\bm{\xi}_\theta) = c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|)
+$$
+Furthermore, we can show that $\hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|)$ can be approximated as a constant (small derivatives) and so :
+$$
+\mathcal{F}((R)(D_{\theta}v))(\bm{\xi}_\theta) = c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \mu_\theta
+$$
+Since $\mu_\theta$ is a constant (and $h$ is supposed to have a finite support), we can compute it by taking a specific value on the frequency axis at the angle $\theta$. That is for instance an extreme value of the support ($s_{\theta}$).
+To eliminate $c_\theta$, we use that the kernel $h$ is non–negative and normalized, hence its shear projection $P_\theta(h)$ also satisfies
+\[
+\int_{\mathbb{R}} P_\theta(h)(x)\,dx = 1.
+\]
+By Proposition 2 and Proposition 3 of the article, we have
+\[
+\mathcal{F}(R(P_\theta(h)))(\xi)=|\widehat{P_\theta(h)}(\xi)|^2 = |\hat h(\xi\,\mathbf{n}_\theta)|^2 .
+\]
+Therefore,
+\begin{align*}
+\int_{\mathbb{R}} c_\theta\,|\hat h(\xi\,\mathbf{n}_\theta)|^2\,d\xi
+&= c_\theta \int_{\mathbb{R}} \mathcal{F}(R(P_\theta(h)))(\xi)\,d\xi \\
+&= c_\theta \int_{\mathbb{R}} R(P_\theta(h))(x)\,dx \\
+&= c_\theta.
+\end{align*}
+Therefore, we are able to estimate $c_\theta$, $\mu_\theta$ and so $|\hat{h}(\xi\mathbf{n}_{\theta})|^2$ for every $\theta$. So we are able to recover $|\hat{h}|^2$.\\
 
-\section{Comparison with other methods}
-mùp^delrfùm
+Once we have an estimation of $|\hat{h}|$, we can recover $h$ by drawing random phases, reconstructing $h$ by inverse fourier transform, enforcing the three constraints on $h$ and deconvolving. The best $h$ is retained.
+
+\subsection*{Implementation details}
+
+\paragraph{Directional derivatives}
+To compute the directional derivative, we use a 1D filter 
+$$d = [3, -32, 168, -672, 0, 672, -168, 32, -3]/840$$
+
+\paragraph{Compensation filter}
+Furthermore, the idea behind this method is the following. 
+Applying a blur kernel mainly attenuates high frequencies. Under the assumed power–decay law, this attenuation behaves like a whitening step, so taking directional derivatives emphasises the high–frequency content along a chosen direction of the spectrum.  
+The autocorrelation of this 1D signal then provides an estimate of the spatial width of the kernel in that direction, since autocorrelation measures how much a signal resembles a shifted version of itself.  
+When an image is blurred (for instance along one direction), its spectrum becomes wider in that direction, and consequently the autocorrelation also becomes wider. This is why studying the autocorrelation of the shear projection of the directional derivatives allows us to recover the modulus of the kernel’s Fourier transform.  
+
+In an ideal sharp image, the whitened autocorrelation would be nearly a Dirac peak. Real images, however, contain noise, artefacts and intrinsic camera blur, which broaden this peak.  
+To ensure that the autocorrelation width reflects only the motion blur, a compensation filter is applied to sharpen it. This is performed by deconvolving the autocorrelation with a small symmetric kernel using conjugate gradient descent. If the result exhibits negative values near the centre, the deconvolution is discarded and the original autocorrelation is kept.
+
+\paragraph{Initial support estimation}
+
+To recover the support of the autocorrelation on a particular direction, we basically take the value at which the minimum occurs. 
+However this gives an estimate of the support that is very noisy. 
+To improve this, we smooth it by applying a Lipshitz constraint such that $$|s_{\theta_i} - s_{\theta_{j}}| \leq \kappa |i - j|$$ with $\kappa$ a constant.
+
+\paragraph{Support re-estimation}
+Once we have recovered a kernel candidate $h$ we can re-estimate its support by taking the value index $k$ such that $95\%$ of the energy of the autocorrelation is contained in this interval (on each direction).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section{Deconvolution with Total Variation Regularization}
+
+We assume that the blur kernel $h$ is known, and we aim to recover the sharp image $u$ by solving
+the following minimization problem:
+\[
+\hat{u}
+=
+\arg\min_{u}
+\;\|h * u - v\|_2^2
+\;+\;
+\lambda \|\nabla u\|_1 ,
+\]
+which corresponds to the classical Total Variation (TV) regularization model for image deblurring.
+
+To solve this problem, we rely on the split-Bregman method, which introduces an auxiliary
+variable $d$ to enforce the constraint $d = \nabla u$. At iteration $k+1$, we solve:
+\[
+(u_{k+1}, d_{k+1})
+=
+\arg\min_{u,\, d}
+\;
+\|h*u - v\|_2^2
++
+\frac{\lambda}{2}\|d\|_1
++
+\frac{\gamma}{2}\|\nabla u - d - b_k\|_2^2,
+\]
+where $b_k$ is a Bregman (or residual) variable that accumulates the violation of the constraint
+$d = \nabla u$. We initialize $d_0 = 0$ and $b_0 = 0$.
+
+\paragraph{1. $u$-subproblem}
+We first minimize with respect to $u$, keeping $d$ and $b$ fixed. Assuming symmetric boundary
+conditions, the solution admits a closed-form expression in the Fourier domain:
+\[
+u
+=
+\mathcal{F}^{-1}\!\left[
+\frac{
+    \tfrac{\lambda}{\gamma}\,\overline{\mathcal{F}(h)} \cdot \mathcal{F}(E v)
+    -
+    \mathcal{F}\!\left(E\,\mathrm{div}(d - b)\right)
+}{
+    \tfrac{\lambda}{\gamma}\,|\mathcal{F}(h)|^2
+    -
+    \mathcal{F}(\Delta)
+}
+\right],
+\]
+where $Eu$ denotes the symmetrized extension of $u$, and $\Delta$ is the discrete Laplacian operator.
+
+\paragraph{2. $d$-subproblem}
+Next, we minimize with respect to $d$:
+\[
+d_{i,j}
+=
+\frac{\nabla u_{i,j} + b_{i,j}}{\lvert \nabla u_{i,j} + b_{i,j}\rvert}
+\;
+\max\!\left(
+    \lvert \nabla u_{i,j} + b_{i,j}\rvert - \frac{1}{\gamma},
+    \; 0
+\right),
+\]
+which corresponds to a soft-thresholding (shrinkage) step applied to the gradient.
+
+\paragraph{3. Bregman update}
+The residual variable is updated as:
+\[
+b_{k+1}
+=
+b_k + (\nabla u - d).
+\]
+
+\paragraph{Stopping criterion}
+We iterate until convergence, for instance when
+\[
+\|u_{k+1} - u_k\|_2 < \eta,
+\]
+meaning that no significant improvement is achieved between successive iterations.
+
+
+
+\section{Results and Discussion}
+To test the performance and the robustness of the proposed method, we conducted a series of experiments on both synthetic and real-world blurred images. These are the characteristics which we evaluated : 
+\begin{itemize}
+    \item TV-Deconvolution with symmetric / circular boundary conditions
+    \item TV-Deconvolution with know kernel vs estimated kernel to see how errors on the kernel are amplified.
+    \item Evaluation of best hyperparameters for TV-deconvolution ($\lambda$, $\gamma$)
+    \item Robustness to noise.
+    \item Robustness with different types of blur kernels 
+    \item Robustness with different kernel sizes.
+    \item Robustness to compression artifacts (JPEG)
+    \item Robustness to different image types (natural, text, faces, etc.)
+\end{itemize}
+
+
+\subsection{TV-Deconvolution with symmetric vs circular boundary conditions}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/circular_vs_symmetric.png}
+    \caption{Comparison of deconvolution method with symmetric vs circular boundary conditions.}
+    \label{fig:noise_kernel_comparison}
+\end{figure}    
+
+
+\subsection{TV-Deconvolution with known kernel vs estimated kernel}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/circular_vs_symmetric_estimated.png}
+    \caption{Comparison of deconvolution with estimated kernel (symmetric vs circular).}
+    \label{fig:noise_kernel_comparison}
+\end{figure}   
+
+
+\subsection{TV-Deconvolution robustness to Noise}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/tvdeconv_noise_test_circ.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/tvdeconv_noise_test_symm.png}
+    \caption{Comparison of deconvolution robustness to noise with circular and symmetric boundary conditions.}
+    \label{fig:noise_kernel_comparison}
+\end{figure}
+
+Figure~\ref{fig:noise_kernel_comparison} illustrates the behaviour of the TV--deconvolution
+algorithm in the presence of additive impulsive noise for both circular and symmetric
+boundary conditions. For low noise levels the reconstruction quality degrades only
+slightly: the TV prior is strong enough to suppress a part of the outliers while still
+preserving the main edges, so the PSNR remains close to the noise–free case. As the
+noise standard deviation increases, however, the $L^2$ data–fidelity term becomes
+poorly adapted to the impulsive noise model: a few very large residuals are heavily
+penalised and the algorithm tends to fit these peaks instead of rejecting them. After
+deconvolution, these sparse outliers are spread by the inverse filter and appear as
+structured patterns or textures, which explains the rapid drop in PSNR and the
+strong artefacts at high noise levels.
+
+The choice of boundary conditions has a visible impact on the result. With circular
+boundary conditions, the convolution operator is modeled as a circulant matrix,
+implicitly assuming that the image is periodic. This allows a very efficient solution
+in the Fourier domain, but it also couples opposite borders of the image: noise and
+ringing artefacts are wrapped around and re–injected everywhere in the field of view.
+When the noise becomes large, the TV regularisation then drives the solution towards
+an almost piecewise–constant image with a ``greyish'' appearance, which strongly
+reduces the PSNR. Symmetric boundary conditions, on the other hand, correspond to an
+even extension of the image outside the domain. This avoids wrap–around artefacts
+and yields reconstructions that are sharper and visually more faithful in the central
+region, which explains the systematically higher PSNR. However, the mirroring of
+structures at the border interacts with the inverse filter and the TV prior, so that
+spurious oscillations and edge artefacts may appear near the image boundaries despite
+the overall gain in visual quality.
+
+
+
+\subsection{Hyperparameters tuning for TV-Deconvolution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/hyperparam_test_circ.png}
+    \caption{Tuning of hyperparameters $(\lambda,\gamma)$ for TV-deconvolution.}
+    \label{fig:noise_kernel_comparison}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../results/hyperparameter_tuning.png}
+    \caption{PSNR heatmap for different hyperparameters $(\lambda,\gamma)$ for TV-deconvolution.}
+    \label{fig:noise_kernel_comparison}
+\end{figure}
+
+Figure~\ref{fig:noise_kernel_comparison} (right) shows a PSNR heatmap as a function of the two TV--deconvolution hyperparameters $(\lambda,\gamma)$. The regularisation weight $\lambda$ controls the trade--off between data fidelity and TV smoothing, while $\gamma$ is the penalty parameter that enforces the constraint $d = \nabla u$ in the split--Bregman scheme. 
+For very small values of $\lambda$, the reconstruction is clearly under--regularised: the image remains noticeably blurred and may still contain ringing artefacts, which results in a low PSNR. 
+As $\lambda$ increases, the image becomes sharper and the PSNR quickly improves, reaching a maximum of about $\mathrm{PSNR} = 27.2\,\mathrm{dB}$ around $(\lambda^\star, \gamma^\star) \simeq (1472, 13.2)$. 
+Beyond this region, larger $\lambda$ values start to over--smooth the solution: edges are still preserved but fine textures and low--contrast details are progressively attenuated, which decreases the PSNR. 
+The behaviour with respect to $\gamma$ is less critical: there exists a broad plateau of good performance for intermediate values, whereas too small or too large $\gamma$ slightly degrades the restoration, mainly by slowing down or destabilising the split--Bregman iterations. Overall, the map indicates that the method is reasonably robust to the choice of $\gamma$, but more sensitive to the regularisation weight $\lambda$.
+
+
+\subsection{Kernel estimation Robustness to Noise}
+
+In what precedes, we assumed $v = h*u$ to have the estimation of $|\hat{h}(\xi_\theta)|^2$. If we add an impulse noise $b$, obtain : 
+$$\mathcal{F}(R(D_{\theta}(v+b)))(\xi_\theta) = \|\bm{\xi}_\theta\|^2 (|\hat{h}(\bm{\xi}_\theta)|^2|\hat{u}(\bm{\xi}_\theta)|^2 + |\hat{b}(\bm{\xi}_\theta)|^2)$$
+So the noise will add a bias to the estimation of $|\hat{h}|$, especially on high frequencies which will wider the autocorrelation and wrong the estimation.\\
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/noise_test.png}
+    \caption{Comparison of estimated kernels with different noise levels (SNR in dB).}
+    \label{fig:noise_kernel_comparison}
+\end{figure}  
+
+Figure~\ref{fig:noise_kernel_comparison} illustrates more precisely how the Goldstein--Fattal
+kernel estimation behaves in the presence of additive noise. For noise-free or mildly noisy
+observations ($\mathrm{std}=0$ and $\mathrm{std}=1$), the estimated kernel remains close to the
+ground-truth diagonal motion blur and the subsequent TV deconvolution reaches PSNR values
+around $25$--$27\,\mathrm{dB}$. This is consistent with the theoretical model: after whitening,
+the spectrum of a sharp image should be approximately flat, so the residual spectral
+irregularities mainly encode the blur kernel. When the noise level increases
+($\mathrm{std}\geq 5$), the whitening step amplifies the high-frequency noise and the 1D
+autocorrelations used to recover $|\hat h|^2$ become strongly corrupted; as a result, the
+estimated kernels lose their elongated structure and concentrate most of their energy on a few
+spurious peaks. The deconvolved images then exhibit heavy ringing and texture-like artefacts,
+and the PSNR drops dramatically (down to about $9\,\mathrm{dB}$ for $\mathrm{std}=20$). These
+experiments confirm the analysis of Anger \emph{et al.}, namely that the Goldstein--Fattal
+estimator is reasonably stable for low noise levels but degrades quickly when the noise variance
+becomes too large, since the projection-based whitening does not intrinsically denoise the
+observations and mainly transfers the noise into the estimated kernel.%
+
+
+\subsection{Kernel size robustness}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/kernel_size_test_circ.png}
+    \caption{Comparison of estimated kernels and deconvolved images for different kernel sizes
+    ($K=15$, $K=25$, $K=35$).}
+    \label{fig:kernel_size_robustness}
+\end{figure}
+
+
+Figure~\ref{fig:kernel_size_robustness} illustrates the influence of the blur-kernel size on the
+Goldstein--Fattal estimation procedure and on the subsequent TV deconvolution. For a moderate
+motion length ($K=15$), the estimated kernel is reasonably close to the true diagonal blur and
+the restored image remains visually sharp, with a PSNR of about $26.7\,\mathrm{dB}$. As the
+kernel size increases ($K=25$ and $K=35$), the degradation becomes much more pronounced: although
+the estimated kernels still exhibit an elongated diagonal structure, they contain many secondary
+lobes and their support no longer matches the true one. The corresponding deconvolved images are
+dominated by strong oscillations and wavy artefacts along the blur direction, and the PSNR drops
+to roughly $20.3\,\mathrm{dB}$ and $19.0\,\mathrm{dB}$, respectively. This behaviour can be
+explained by the fact that long motion blurs remove a large portion of the high–frequency content
+of the image, so that the 1D autocorrelations used to estimate $|\hat h|^2$ become increasingly
+ill-conditioned and very sensitive to modelling errors. Any mismatch in the recovered support is
+then strongly amplified by the inverse filter in the TV–deconvolution step, especially with
+circular boundary conditions, which leads to the observed ringing artefacts. Overall, the method
+appears reliable for small to moderate kernel sizes, but its performance quickly degrades as the
+blur extent grows.
+
+\subsection{Real images test}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/real_images_test.png}
+    \caption{Comparison of estimated kernels with different noise levels (SNR in dB).}
+    \label{fig:noise_kernel_comparison}
+\end{figure}
+
+Figure~\ref{fig:noise_kernel_comparison} shows the behaviour of the method on real camera-blurred images. In the first three examples, taken from standard natural-image datasets, the blur remains relatively mild and can be reasonably approximated by a spatially invariant motion kernel. Under these conditions, the Goldstein–Fattal estimator produces compact and coherent kernels with a clear dominant direction, and the subsequent TV deconvolution successfully sharpens the images, restoring edges and fine structures without introducing strong artefacts.
+
+The last two rows, however, correspond to personal RAW photographs captured hand-held, and the method fails to recover meaningful kernels. Here, the camera motion is likely much more complex—combining small 3D rotations, slight lens defocus, sensor noise, and potentially rolling-shutter distortions. Such blur is no longer well modelled by a single convolution kernel. As a result, the estimated kernels become highly fragmented and irregular, and the deconvolution step is unable to restore the images, yielding outputs that remain blurry or exhibit additional artefacts.
+
+These experiments highlight an important limitation: the method performs reliably when the blur is simple and approximately convolutional, but breaks down on realistic handheld RAW images where the true camera motion deviates significantly from the simplified model.
+
+\subsection{Compressed images robustness}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/compressed_test.png}
+    \caption{Comparison of estimated kernels and deconvolved images for different JPEG compression levels (quality factor $Q=75$, $Q=50$, $Q=25$, $Q=10$).}
+    \label{fig:jpeg_robustness}
+\end{figure}
+
+Figure~\ref{fig:compressed_robustness} illustrates the behaviour of the proposed
+pipeline when the blurred image is further degraded by JPEG compression at
+different quality factors. The first row corresponds to the reference PNG image:
+the estimated kernel is compact and closely matches the ground truth, and the
+deconvolved image reaches a PSNR of about $28.9\,\mathrm{dB}$. For moderate
+compression levels (quality $75$ and $50$), the JPEG artefacts mainly appear as
+weak high–frequency perturbations. The estimated kernels remain very similar to
+the PNG case and the PSNR of the restored images decreases only slightly
+($27.4$–$28.4\,\mathrm{dB}$), which shows that the kernel estimation and the
+TV–deconvolution are fairly robust to mild quantization noise. When the quality
+factor is further reduced (quality $25$ and especially $10$), blocking artefacts
+and staircase effects become visible in the compressed observations. These
+structured artefacts interfere with the whitening step and with the
+autocorrelation used to estimate $|\hat h|^2$, leading to slightly more
+diffuse kernels and a noticeable but still moderate drop in PSNR (down to
+$\approx 27.0\,\mathrm{dB}$ for quality $10$). Overall, the experiments
+indicate that the method tolerates typical JPEG compression levels well, and
+only starts to degrade for very aggressive compression where the image content
+itself is strongly distorted.
+
+
+
+
+
+\subsection{Limitations of the method}
+
+The experiments above clearly reveal several limitations of the proposed pipeline. First, the entire approach relies on a simplified forward model where the blur is spatially invariant and purely convolutional; this assumption is often reasonable for synthetic motion blur, but it is clearly violated for realistic hand–held camera shakes that combine 3D rotations, depth variations, focus errors and rolling–shutter effects, as observed on the personal RAW images. Second, the Goldstein--Fattal kernel estimator is intrinsically sensitive to measurement noise, to the intrinsic camera blur and to model mismatch: the whitening step amplifies high–frequency perturbations, so the 1D autocorrelations used to recover $|\hat h|^2$ rapidly become unreliable in the presence of strong noise, long motion kernels, severe compression artefacts, or inaccurate support estimation. In turn, any error in the estimated kernel is strongly magnified by the inverse filter during TV--deconvolution, leading to ringing, structured artefacts and a rapid drop in PSNR. Third, the restoration stage itself requires a careful tuning of the hyperparameters $(\lambda,\gamma)$ and of the boundary conditions; circular convolutions are efficient but prone to wrap--around artefacts, whereas symmetric boundaries alleviate these artefacts at the cost of a more complex implementation, and the optimal $(\lambda,\gamma)$ values depend on the noise level, the kernel size and the image content. Finally, the method remains computationally expensive compared to pure non-blind TV deconvolution, since it involves multiple Fourier transforms and a stochastic search over kernel phases, and it cannot exploit semantic priors or large training datasets as modern deep learning approaches do. Overall, these limitations suggest that the technique is best suited to moderately blurred, moderately noisy images where the convolutional model is a good approximation, and that substantial extensions would be required to handle more realistic, heterogeneous degradations.
+Compared to alternative Bayesian or MAP-based blind deconvolution methods with richer image priors (e.g., sparsity in learned dictionaries or heavy–tailed gradient models) that jointly estimate the sharp image and the blur kernel, the proposed decoupled approach is simpler and more interpretable but typically less flexible and less robust to severe model mismatch.
+
+\subsection{Suggestions}
+
+Building on the limitations identified above, several directions could be explored to improve the proposed pipeline. A first line of work would be to relax the assumption of a spatially invariant blur and move towards more realistic motion models, for instance by using piecewise-uniform kernels, spatially varying point spread functions, or low-dimensional parametric camera-motion models estimated from the data. On the kernel-estimation side, a particularly weak point of the current implementation is the purely random sampling of Fourier phases: this strategy may miss plausible kernels and tends to be inefficient. A more principled alternative would be to optimise the phase variables explicitly, for example through projected gradient descent on the unit circle, or by embedding the phase estimation in an alternating minimisation scheme that jointly refines the kernel and a provisional sharp image under non-negativity and support constraints. One could also restrict the search to physically plausible motion trajectories (e.g., piecewise-linear paths) and parameterise the kernel by a small number of motion parameters, which would greatly reduce the dimensionality of the phase space.
+
+Concerning the restoration stage, the present work relies on isotropic TV regularisation, which is known to produce staircase artefacts and to oversmooth textures. Several alternative priors could be investigated: higher-order variants such as total generalized variation (TGV) to better preserve smooth intensity ramps, nonlocal or structure–tensor based regularisation to respect oriented textures, or sparse representations in wavelet or learned dictionaries to model fine-scale details more faithfully. One may also replace the quadratic data-fidelity term by more robust losses (such as $L^1$, Huber, or mixed $L^2$--$L^1$ terms) and couple this with automatic hyperparameter selection rules (e.g., discrepancy principles or Stein’s unbiased risk estimates) in order to adapt to different noise statistics without manual tuning.
+
+Finally, a promising perspective would be to hybridise this variational framework with modern data-driven priors. Plug-and-play or RED-type schemes could incorporate powerful pretrained denoisers (BM3D or CNN-based) in place of the TV proximal operator, while unrolled optimisation networks could mimic several iterations of the Goldstein--Fattal + TV-deconvolution pipeline and learn a subset of its parameters from data. Such hybrids would retain the interpretability and control offered by the physical forward model, while benefiting from the expressive power and robustness of learned image priors.
+
+
+\section{Conclusion}
+
+In this report, we have studied a blind image deblurring pipeline that combines the Goldstein--Fattal kernel-estimation method with a TV-regularised deconvolution solved by the split-Bregman algorithm. On synthetic examples with moderate motion blur and limited noise, the approach proves capable of recovering reasonably accurate kernels and producing sharp restorations, provided that the blur is well approximated by a spatially invariant convolution. The experiments also highlight the importance of implementation choices such as boundary conditions and the tuning of the TV hyperparameters, which have a strong impact on both PSNR and visual quality. However, as soon as the acquisition deviates from the simplified forward model (e.g., complex hand-held camera shake, long motion paths, strong noise or heavy compression), the kernel estimation becomes unstable and the deconvolution step amplifies modelling errors, leading to ringing artefacts and poor restorations. Overall, while the method cannot compete with state-of-the-art deep learning or advanced Bayesian blind deconvolution algorithms on challenging real-world data, it remains attractive as a conceptually simple, interpretable and training-free baseline. The suggested extensions---towards more realistic blur models, more robust priors and possible hybrid variational/learning approaches---constitute natural perspectives for future work on this problem.
+
+
 
 \end{document}
