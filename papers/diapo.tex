@@ -1,0 +1,211 @@
+\documentclass{beamer}
+
+\usetheme{Madrid} % Tu peux changer : Berlin, CambridgeUS, Warsaw, etc.
+
+\title{Image Restoration by Inverse Problem with Kernel Estimation}
+\author{Rothlingshofer Yanic \\ Douar Lounes}
+\date{21 novembre 2025}
+
+\begin{document}
+
+% Page de titre
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% Plan
+\begin{frame}{Plan}
+    \tableofcontents
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{Context}
+    \begin{itemize}
+        \item Motion blur occurs when camera or scene motion affects the exposure.
+        \item Variational and Bayesian approaches historically dominate blind deblurring.
+        \item Deep learning achieves strong results but requires large datasets and heavy computation.
+        \item We focus on an interpretable, training-free variational pipeline based on spectral priors.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Objectives}
+    \begin{itemize}
+        \item Estimate the blur kernel from the blurred image using anisotropic power spectrum modelling.
+        \item Recover the sharp image through TV-regularised deconvolution solved by Split-Bregman.
+        \item Pipeline:
+        \begin{itemize}
+            \item spectral modulus estimation of the kernel,
+            \item phase reconstruction under support and positivity constraints,
+            \item TV-based restoration with tuned hyperparameters.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\section{Mathematical Model}
+
+\begin{frame}{Blur Model}
+    On considère :
+    \[
+    v = u * k + b
+    \]
+    \begin{itemize}
+        \item $u$: sharp latent image.
+        \item $k$: non-negative, normalized blur kernel with compact support.
+        \item $b$: additive impulse noise.
+        \item Ill-posed inverse problem requiring prior assumptions.
+        \item We assume spatially invariant linear motion blur.
+    \end{itemize}
+\end{frame}
+
+
+\section{Blind Kernel Estimation}
+
+\begin{frame}{Prior}
+\[
+| \widehat{u}(\xi n_\theta) |^2 \approx \frac{1}{\varepsilon + c_\theta \|\xi\|^2}
+\]
+\[
+\Rightarrow | \widehat{D_\theta u}(\xi n_\theta) |^2 = |\xi|^2 \, | \widehat{u}(\xi n_\theta)|^2 = \frac{|\xi|^2}{\varepsilon + c_\theta \|\xi\|^2}
+\]
+\begin{itemize}
+    \item Natural images follow an anisotropic power-law decay.
+    \item Taking directional derivatives amplifies high frequencies.
+    \item This allows isolating the blur kernel in the spectrum of $D_\theta v$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Whitening and Directional Derivatives}
+    \[
+    D_\theta v = (D_\theta u) * k + D_\theta b
+    \]
+    \[
+    \widehat{D_\theta v}(\xi n_\theta) = i(\xi n_\theta \cdot n_\theta)\, \widehat{u}(\xi n_\theta)\, \widehat{k}(\xi n_\theta) + \widehat{D_\theta b}(\xi n_\theta)
+    \]
+    \begin{itemize}
+        \item Whitening: $D_\theta$ flattens the spectrum of natural images.
+        \item The remaining directional variations come from the blur kernel.
+        \item Enables isolating $|\widehat{k}|^2$ in the autocorrelation domain.
+    \end{itemize}
+
+\end{frame}
+
+\begin{frame}{Autocorrelation Analysis}
+    \[
+    \mathbb{E}\left(|\widehat{D_\theta v}(\xi n_\theta)|^2\right) 
+    = |\xi|^2 \, |\widehat{u}(\xi n_\theta)|^2 \, |\widehat{k}(\xi n_\theta)|^2 
+    + \mathbb{E}\left(|\widehat{D_\theta b}|^2\right)
+    \]
+    \[
+    = c_\theta |\widehat{k}(\xi n_\theta)|^2 + \mu_\theta
+    \]
+    \begin{itemize}
+        \item After whitening, the residual spectrum becomes linear in $|\widehat{k}|^2$.
+        \item $\mu_\theta$ is estimated using the kernel normalization constraint:
+        \[
+        \int_\mathbb{R} P_\theta(h)(x)\,dx = 1.
+        \]
+        \item Allows reconstruction of $|\widehat{k}(\xi)|^2$ for all $\theta$.
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Autocorrelation Deconvolution with compensation filter}
+    \[
+    R_{D_{\theta} v} = R_{D_{\theta} u} * R_k + R_{D_{\theta} b}
+    \]
+    \begin{itemize}
+        \item Autocorrelation of $D_\theta v$ gives access to the width of the blur in direction $\theta$.
+        \item A compensation filter deconvolves camera noise and intrinsic blur using CG iterations.
+        \item Negative lobes near the center invalidate the compensation and revert to the raw autocorrelation.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Initial Support Estimation}
+    \begin{itemize}
+        \item Initial support $s_\theta$ estimated from minima of compensated autocorrelation.
+        \item Support is smoothed using the Lipschitz constraint:
+        \[
+        |s_{\theta_i} - s_{\theta_j}| \le \kappa |\theta_i - \theta_j|.
+        \]
+        \item Ensures coherent support across all projection directions.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Power spectrum estimation}
+    \[
+    F(R(D_\theta v))(\xi) = c_\theta |\widehat{k}(\xi n_\theta)|^2 + \mu_\theta
+    \]
+    \[
+    \Rightarrow |\widehat{k}(\xi n_\theta)|^2 = \frac{F(R(D_\theta v))(\xi) - \mu_\theta}{c_\theta}
+    \]
+    \begin{itemize}
+        \item Full modulus $|\widehat{k}(\xi)|$ recovered by interpolating directional slices.
+        \item Noise bias removed using low-frequency estimates of $\mu_\theta$.
+        \item Produces a stable modulus usable for phase retrieval.
+    \end{itemize}
+\end{frame} 
+
+\begin{frame}{Phase retrieval and kernel estimation}
+    \begin{itemize}
+        \item Random phases $\phi(\xi)$ sampled to reconstruct candidate kernels:
+        \[
+        k = \mathcal{F}^{-1}\left(|\widehat{k}(\xi)| e^{i\phi(\xi)}\right)
+        \]
+        \item Constraints applied: positivity, compact support, normalization.
+        \item Best candidate chosen by TV-deconvolution PSNR score.
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{TV Deconvolution}
+    \[
+    \hat{u} = \arg\min_u 
+    \frac12 \|k*u - v\|_2^2 
+    + \lambda \|\nabla u\|_1
+    \]
+    \[
+    \text{Split-Bregman iterations:}
+    \]
+    \[
+    u^{k+1} = \arg\min_u 
+    \frac12\|k*u - v\|_2^2 
+    + \frac{\gamma}{2}\|\nabla u - d^k + b^k\|_2^2
+    \]
+    \[
+    d^{k+1} = \operatorname{shrink}(\nabla u^{k+1} + b^k,\, \lambda/\gamma)
+    \]
+    \[
+    b^{k+1} = b^k + (\nabla u^{k+1} - d^{k+1})
+    \]
+    \begin{itemize}
+        \item Solved in Fourier domain using symmetric or circular boundary conditions.
+        \item TV prior preserves edges and limits ringing.
+        \item Convergence when $\|u^{k+1}-u^k\| < \eta$.
+    \end{itemize}
+\end{frame}
+
+\section{Kernel Estimation}
+
+\begin{frame}{Estimation Principle}
+    \begin{itemize}
+        \item Analysis of the directional spectrum of the image.
+        \item Use of directional derivatives.
+        \item Recovery of the Fourier transform modulus of the kernel.
+        \item Kernel reconstruction via random phases.
+    \end{itemize}
+\end{frame}
+
+\section{Results}
+
+\begin{frame}{Types of Experiments Conducted}
+    \begin{itemize}
+        \item Validation with known vs estimated blur.
+        \item Robustness to noise.
+        \item Influence of boundary conditions.
+        \item Effect of kernel size.
+        \item Tests on real images.
+    \end{itemize}
+\end{frame}
+
+\end{document}

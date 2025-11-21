@@ -1,5 +1,6 @@
 from kernel_estimation_bis import estime_noyau, centrer_le_noyau
-from kernel_estimation import blur_kernel_estimation, center_kernel
+# from kernel_estimation import blur_kernel_estimation
+# from kernel_estimation import center_kernel
 from tv_deconv import tv_deconv as tv_deconv_symm
 from tvdeconv import tv_deconv_circular
 from utils import *
@@ -74,7 +75,7 @@ def test_tv_deconv():
             v = convolve2d(u_y, h, mode='same', boundary='symm')
             h_rec = kernel_estimation(v, p=25, verbose=False)
             print("Shape of estimated kernel:", h_rec.shape)
-            h_rec = center_kernel(h_rec)
+            h_rec = centrer_le_noyau(h_rec)
             t1 = time()
             u_rec = TV_deconv(v, h, lam = 2000, add_tapping=add_tapping)
             u_rec2 = TV_deconv(v, h_rec, lam = 2000, add_tapping=add_tapping)
@@ -443,9 +444,31 @@ def compressed_test():
     plt.pause(1)
 
 
+def simple_test():
+    img = load_test_data(mode='0001000000')[0]
+    if img.ndim == 3 and img.shape[2] == 3:
+        img_ycbcr = rgb_to_ycbcr(img)
+        img_y = img_ycbcr[:, :, 0]
+        v = img_y
+    else:
+        v = img
 
+    h_est = kernel_estimation(v, p=25, verbose=True)
+    h_est = centrer_le_noyau(h_est)
+    u_rec = TV_deconv(v, h_est, add_tapping=add_tapping)
+    if img.ndim == 3 and img.shape[2] == 3:
+        u_rec_ycbcr = np.stack([u_rec, img_ycbcr[:, :, 1], img_ycbcr[:, :, 2]], axis=-1)
+        u_rec_rgb = ycbcr_to_rgb(u_rec_ycbcr)
+        u_rec = u_rec_rgb
+    # metrics = compute_metrics(img, u_rec)
+    # images = [img, v, h_est, u_rec]
+    # titles = ["Original Image", "Blurred Image", "Estimated Kernel", f"Deconvolved Image (PSNR: {metrics['PSNR']:.2f})"]
+    # view_images(*images, title="simple_test",titles=titles, cols=4)
+    # plt.pause(10)
 
 if __name__ == "__main__":
+
+    plt.close('all')
 
     """ DECONVOLUTION TESTS """
     # test_circular_vs_symmetric()
@@ -460,3 +483,5 @@ if __name__ == "__main__":
     # realimages_test()
     # compressed_test() 
 
+    """ Simple test to visualize kernel estimation process """
+    simple_test()

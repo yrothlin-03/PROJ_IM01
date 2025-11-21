@@ -15,18 +15,93 @@ conj = np.conj
 
 
 def show_autocorr(R: np.ndarray):
+    plt.figure()
     n_angles, win_len = R.shape
     center = win_len // 2
-    for i in range(n_angles//2):
+    for i in range(0, n_angles, 50):
         plt.plot(np.arange(-center, center + 1), R[i, :])
 
     plt.title("Projections' Autocorrelations")
     plt.xlabel("Lag")
     plt.ylabel("Autocorrelation")
     plt.legend()
+    plt.savefig(f"kernel_est_bis/autocorr.png", dpi=300, bbox_inches="tight")
     plt.show()
-    plt.pause(5)
     plt.close()
+
+
+def show_autocorr_compensated(R_comp: np.ndarray):
+    plt.figure()
+    n_angles, win_len = R_comp.shape
+    center = win_len // 2
+    for i in range(0, n_angles, 50):
+        plt.plot(np.arange(-center, center + 1), R_comp[i, :])
+
+    plt.title("Compensated Projections' Autocorrelations")
+    plt.xlabel("Lag")
+    plt.ylabel("Autocorrelation")
+    plt.legend()
+    plt.savefig(f"kernel_est_bis/autocorr_compensated.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+
+def show_whitening(Dtheta, theta):
+    plt.figure()
+    plt.imshow(Dtheta, cmap='gray', aspect='auto')
+    plt.title(f"Whitening Matrix Dtheta for angle {theta}")
+    plt.xlabel("Theta Index")
+    plt.ylabel("Frequency Index")
+    plt.colorbar()
+    plt.savefig(f"kernel_est_bis/whitening_matrix_theta_{theta}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+
+    
+def show_initial_support(S, vals_min=None):
+    plt.figure()
+    plt.plot(S.reshape(-1), label="Estimated Support", color='blue', linewidth=2)
+    if vals_min is not None:
+        plt.plot(vals_min.reshape(-1), label="Minimum Values", color='red', linestyle='--')
+    plt.title("Initial Support")
+    plt.savefig(f"kernel_est_bis/initial_support.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_power_spectrum(Hspectrum, iteration):
+    plt.figure()
+    plt.imshow(Hspectrum, cmap='hot', aspect='auto')
+    plt.title(f"Estimated Power Spectrum of the Blur Kernel - Iteration {iteration}")
+    plt.xlabel("Frequency X")
+    plt.ylabel("Frequency Y")
+    plt.colorbar()
+    plt.savefig(f"kernel_est_bis/power_spectrum_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_kernel(kernel, iteration):
+    plt.figure()
+    plt.imshow(kernel, cmap='gray')
+    plt.title(f"Estimated Blur Kernel - Iteration {iteration}")
+    plt.colorbar()
+    plt.savefig(f"kernel_est_bis/kernel_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_reestimated_support(supports, iteration):
+    plt.figure()
+    plt.plot(supports)
+    plt.title(f"Re-estimated Supports of the Blur Kernel - Iteration {iteration}")
+    plt.xlabel("Angle Index")
+    plt.ylabel("Support Size")
+    plt.savefig(f"kernel_est_bis/reestimated_support_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+
+
+
 
 
 def get_phase_alea(Mh,s=None):
@@ -276,6 +351,7 @@ def deconv_intrinsic_blur(corr, alpha=2.1, lam=1e-2):
 def initial_support_estimation(tab_corrs,centre,thetas,kappa=30):
     tab_interet=tab_corrs[:,centre:]
     sprime=tab_interet.argmin(axis=1)
+    vals_min = tab_interet[np.arange(tab_interet.shape[0]), sprime]
     s=(tab_interet.shape[1]-1)*np.ones(tab_interet.shape[0])
     for k in range(tab_interet.shape[0]):
         if sprime[k]<s[k]:
@@ -284,7 +360,7 @@ def initial_support_estimation(tab_corrs,centre,thetas,kappa=30):
                 s[m]=min(s[m],\
                                    sprime[k]+\
                                        kappa*abs(thetas[m]-thetas[k]))
-    return s
+    return s, vals_min
 
 def Estimate_h_correlations(tab_corrs,supports):
     """ si le support est connu, on met à zéro tout ce qui dépasse.
@@ -459,20 +535,17 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
     #calcul des autocorrelations de projections du gradient suivant theta
     # sur l'axe theta
     cinit=calcul_correlations_initiales(img,thetas,p)
+    if verbose:
+        show_autocorr(cinit)
     # Deconvoluer légèrement les autocorrélations pour suppprimer un
     # "flou intrinsèque
     cdeconv=deconv_intrinsic_blur(cinit)
     if verbose:
-        print(f"Initial autocorrelations shape: {cdeconv.shape}")
-        show_autocorr(cdeconv)
+        show_autocorr_compensated(cdeconv)
     # Calcul des supports initiaux
-    supports=initial_support_estimation(cdeconv,2*p,thetas,kappa=30)
+    supports, vals_min = initial_support_estimation(cdeconv,2*p,thetas,kappa=30)
     if verbose:
-        plt.plot(supports)
-        plt.title("Initial estimated support sizes per angle")
-        plt.show()
-        plt.pause(5)
-        plt.close()
+        show_initial_support(supports.reshape(1,-1), vals_min)
     # En déduire les autocorrélations puis le spectre de puissance de h
     hpower=Estimate_h_correlations(cdeconv,supports)
     H2=spectre_puissance_depuis_corrs(hpower,Nspectrenoyau,indexs)
@@ -491,16 +564,12 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
         new_corrs=Estimate_h_correlations(cdeconv,supports)
         H2=spectre_puissance_depuis_corrs(new_corrs,Nspectrenoyau,indexs)
         if verbose:
-            plt.imshow(H2, cmap='hot')
-            plt.title(f"Estimated support sizes per angle - Outer iteration {m+1}/{Nouter}")
-            plt.show()
-            plt.pause(5)
-            plt.close()
+            show_power_spectrum(H2, m)
         cbest=None
         P=Propose_patch_haute_variance(imgvars,img,taille_patch)
         for k in range(Ntries):
-            if verbose:
-                print('boucle numéro',m, 'essai',k, 'sur ', Ntries)
+            # if verbose:
+                # print('boucle numéro',m, 'essai',k, 'sur ', Ntries)
             g=SinglePhaseRetrieval(abs(H2)**0.5,p,Mh=Nspectrenoyau)
             if (p//2)*2==p:
 
@@ -512,8 +581,8 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
             tmpim=tv_deconv(P,gdeconv, lam=2000,gamma=5,max_iters=40)
             c=score_restau(tmpim)
 
-            if verbose:
-                print('score',c)
+            # if verbose:
+                # print('score',c)
             if cbest is None or c<cbest:
                 gbest=g.copy()
                 cbest=c
@@ -526,15 +595,19 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
 
             tmpim=tv_deconv(P,gdeconv,lam=2000,gamma=5,max_iters=40)
             c=score_restau(tmpim)
-            if verbose:
-                print('score flip',c)
+            # if verbose:
+                # print('score flip',c)
             if c<cbest:
                 gbest=g.copy()
                 cbest=c
         supports=Restimation_supports_noyau(gbest,p,thetas,ratio=0.05)
+        if verbose:
+            show_reestimated_support(supports, m)
         # if verbose:
         #     viewimage(gbest,titre='tentative'+str(m))
         #     print('temps total de la boucle numéro',m ,'est ',time.time()-t0)
+        if verbose:
+            show_kernel(gbest, m)
         gbests.append(gbest)
     return gbest
 
@@ -557,14 +630,6 @@ def centrer_le_noyau(K):
     return Knew
 
 
-
-def compute_R(img, thetas, p):
-    """ Compute the autocorrelations of the projections of the gradient of img
-        along the angles in thetas.
-    """
-    cinit =calcul_correlations_initiales(img, thetas, p)
-    cdeconv = deconv_intrinsic_blur(cinit)
-    return cdeconv
 
 if __name__ == "__main__":
     pass

@@ -1,0 +1,5 @@
+\beamer@sectionintoc {1}{Introduction}{3}{0}{1}
+\beamer@sectionintoc {2}{Mathematical Model}{5}{0}{2}
+\beamer@sectionintoc {3}{Blind Kernel Estimation}{6}{0}{3}
+\beamer@sectionintoc {4}{Kernel Estimation}{14}{0}{4}
+\beamer@sectionintoc {5}{Results}{15}{0}{5}

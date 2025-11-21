@@ -11,18 +11,90 @@ from kernel_estimation_bis import compute_R
 
 
 def show_autocorr(R: np.ndarray):
+    plt.figure()
     n_angles, win_len = R.shape
     center = win_len // 2
-    for i in range(n_angles//2):
+    for i in range(0, n_angles, 50):
         plt.plot(np.arange(-center, center + 1), R[i, :])
 
     plt.title("Projections' Autocorrelations")
     plt.xlabel("Lag")
     plt.ylabel("Autocorrelation")
     plt.legend()
+    plt.savefig(f"kernel_est/autocorr.png", dpi=300, bbox_inches="tight")
     plt.show()
-    plt.pause(5)
     plt.close()
+
+
+def show_autocorr_compensated(R_comp: np.ndarray):
+    plt.figure()
+    n_angles, win_len = R_comp.shape
+    center = win_len // 2
+    for i in range(0, n_angles, 50):
+        plt.plot(np.arange(-center, center + 1), R_comp[i, :])
+
+    plt.title("Compensated Projections' Autocorrelations")
+    plt.xlabel("Lag")
+    plt.ylabel("Autocorrelation")
+    plt.legend()
+    plt.savefig(f"kernel_est/autocorr_compensated.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+
+def show_whitening(Dtheta, theta):
+    plt.figure()
+    plt.imshow(Dtheta, cmap='gray', aspect='auto')
+    plt.title(f"Whitening Matrix Dtheta for angle {theta}")
+    plt.xlabel("Theta Index")
+    plt.ylabel("Frequency Index")
+    plt.colorbar()
+    plt.savefig(f"kernel_est/whitening_matrix_theta_{theta}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+
+    
+def show_initial_support(S, vals_min=None):
+    plt.figure()
+    plt.plot(S.reshape(-1), label="Estimated Support", color='blue', linewidth=2)
+    if vals_min is not None:
+        plt.plot(vals_min.reshape(-1), label="Minimum Values", color='red', linestyle='--')
+    plt.title("Initial Support")
+    plt.savefig(f"kernel_est/initial_support.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_power_spectrum(Hspectrum, iteration):
+    plt.figure()
+    plt.imshow(Hspectrum, cmap='hot', aspect='auto')
+    plt.title(f"Estimated Power Spectrum of the Blur Kernel - Iteration {iteration}")
+    plt.xlabel("Frequency X")
+    plt.ylabel("Frequency Y")
+    plt.colorbar()
+    plt.savefig(f"kernel_est/power_spectrum_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_kernel(kernel, iteration):
+    plt.figure()
+    plt.imshow(kernel, cmap='gray')
+    plt.title(f"Estimated Blur Kernel - Iteration {iteration}")
+    plt.colorbar()
+    plt.savefig(f"kernel_est/kernel_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
+def show_reestimated_support(supports, iteration):
+    plt.figure()
+    plt.plot(supports)
+    plt.title(f"Re-estimated Supports of the Blur Kernel - Iteration {iteration}")
+    plt.xlabel("Angle Index")
+    plt.ylabel("Support Size")
+    plt.savefig(f"kernel_est/reestimated_support_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    plt.close()
+
 
 def _score_kernel(hk: np.ndarray, P: np.ndarray) -> float:
     d, _ = tv_deconv(P, hk)
