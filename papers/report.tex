@@ -345,22 +345,60 @@ To test the performance and the robustness of the proposed method, we conducted 
 
 \subsection{TV-Deconvolution with symmetric vs circular boundary conditions}
 
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{../results/circular_vs_symmetric.png}
     \caption{Comparison of deconvolution method with symmetric vs circular boundary conditions.}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:circ_vs_symm1}
 \end{figure}    
+
+Figure~\ref{fig:circ_vs_symm1} compares TV--deconvolution under circular and symmetric
+boundary conditions when the ground-truth blur kernel is used in the forward model.
+Contrary to the intuitive expectation that symmetric boundaries should better match
+the physical acquisition process, our experiments show that the quantitative
+performance is very similar for both choices, with PSNR values that are generally
+comparable and sometimes slightly higher for circular convolutions. Moreover, we
+observe more pronounced ringing artefacts with symmetric boundary conditions,
+especially along strong edges. This suggests that, in our implementation, the
+combination of symmetric extensions with the discrete convolution and TV
+regularisation operators introduces additional oscillations near the borders,
+which are then propagated into the image by the inverse filter. As a result, the
+simple circular model, despite its unrealistic periodicity assumption, proves to
+be at least as effective as the symmetric one from a purely quantitative (PSNR)
+point of view. From a visual standpoint, however, the symmetric reconstructions
+tend to preserve global contrast and the perceived separation between structures
+in the central part of the image better than the circular ones, which sometimes
+appear slightly more washed out because of the periodic continuation.
 
 
 \subsection{TV-Deconvolution with known kernel vs estimated kernel}
+
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{../results/circular_vs_symmetric_estimated.png}
     \caption{Comparison of deconvolution with estimated kernel (symmetric vs circular).}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:circ_vs_symm2}
 \end{figure}   
+
+Figure~\ref{fig:circ_vs_symm2} shows the same comparison when the blur kernel is no
+longer assumed to be known but estimated using the Goldstein--Fattal procedure.
+As expected, the overall reconstruction quality decreases for both types of
+boundary conditions: slight inaccuracies in the estimated kernel translate into
+residual blur and additional ringing artefacts. In this regime the choice of
+boundary conditions remains important, but the behaviour is less clear-cut than
+one might expect. In our experiments, circular convolutions often yield PSNR
+values that are comparable to or slightly higher than those obtained with
+symmetric boundaries, and the symmetric case tends to exhibit more visible
+ringing. A plausible explanation is that the combination of kernel errors and
+symmetric extensions leads to stronger oscillations at the borders, which are
+then spread across the image by the inverse filter and only partially damped by
+TV regularisation. From a perceptual point of view, however, the symmetric
+reconstructions frequently preserve a higher overall contrast and a clearer
+separation between foreground and background structures in the central area of
+the image, whereas the circular case often looks slightly flatter and lower in
+contrast despite its marginal PSNR advantage.
 
 
 \subsection{TV-Deconvolution robustness to Noise}
@@ -373,10 +411,10 @@ To test the performance and the robustness of the proposed method, we conducted 
     \centering
     \includegraphics[width=1\linewidth]{../results/tvdeconv_noise_test_symm.png}
     \caption{Comparison of deconvolution robustness to noise with circular and symmetric boundary conditions.}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:noise_test}
 \end{figure}
 
-Figure~\ref{fig:noise_kernel_comparison} illustrates the behaviour of the TV--deconvolution
+Figure~\ref{fig:noise_test} illustrates the behaviour of the TV--deconvolution
 algorithm in the presence of additive impulsive noise for both circular and symmetric
 boundary conditions. For low noise levels the reconstruction quality degrades only
 slightly: the TV prior is strong enough to suppress a part of the outliers while still
@@ -396,12 +434,12 @@ ringing artefacts are wrapped around and re–injected everywhere in the field o
 When the noise becomes large, the TV regularisation then drives the solution towards
 an almost piecewise–constant image with a ``greyish'' appearance, which strongly
 reduces the PSNR. Symmetric boundary conditions, on the other hand, correspond to an
-even extension of the image outside the domain. This avoids wrap–around artefacts
-and yields reconstructions that are sharper and visually more faithful in the central
-region, which explains the systematically higher PSNR. However, the mirroring of
-structures at the border interacts with the inverse filter and the TV prior, so that
-spurious oscillations and edge artefacts may appear near the image boundaries despite
-the overall gain in visual quality.
+even extension of the image outside the domain. This avoids wrap--around artefacts and could in principle improve the modelling near
+the borders, but in our experiments the resulting PSNR is at best comparable and
+often slightly lower than in the circular case, and the symmetric reconstructions
+tend to exhibit more ringing. Visually, however, they usually preserve a higher
+contrast in the central region and can therefore look more pleasing than the more
+greyish circular solutions at moderate noise levels.
 
 
 
@@ -411,17 +449,17 @@ the overall gain in visual quality.
     \centering
     \includegraphics[width=1\linewidth]{../results/hyperparam_test_circ.png}
     \caption{Tuning of hyperparameters $(\lambda,\gamma)$ for TV-deconvolution.}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:hyperparam_test1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\linewidth]{../results/hyperparameter_tuning.png}
     \caption{PSNR heatmap for different hyperparameters $(\lambda,\gamma)$ for TV-deconvolution.}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:hyperparam_test2}
 \end{figure}
 
-Figure~\ref{fig:noise_kernel_comparison} (right) shows a PSNR heatmap as a function of the two TV--deconvolution hyperparameters $(\lambda,\gamma)$. The regularisation weight $\lambda$ controls the trade--off between data fidelity and TV smoothing, while $\gamma$ is the penalty parameter that enforces the constraint $d = \nabla u$ in the split--Bregman scheme. 
+Figure~\ref{fig:hyperparam_test2}  shows a PSNR heatmap as a function of the two TV--deconvolution hyperparameters $(\lambda,\gamma)$. The regularisation weight $\lambda$ controls the trade--off between data fidelity and TV smoothing, while $\gamma$ is the penalty parameter that enforces the constraint $d = \nabla u$ in the split--Bregman scheme. 
 For very small values of $\lambda$, the reconstruction is clearly under--regularised: the image remains noticeably blurred and may still contain ringing artefacts, which results in a low PSNR. 
 As $\lambda$ increases, the image becomes sharper and the PSNR quickly improves, reaching a maximum of about $\mathrm{PSNR} = 27.2\,\mathrm{dB}$ around $(\lambda^\star, \gamma^\star) \simeq (1472, 13.2)$. 
 Beyond this region, larger $\lambda$ values start to over--smooth the solution: edges are still preserved but fine textures and low--contrast details are progressively attenuated, which decreases the PSNR. 
@@ -433,13 +471,6 @@ The behaviour with respect to $\gamma$ is less critical: there exists a broad pl
 In what precedes, we assumed $v = h*u$ to have the estimation of $|\hat{h}(\xi_\theta)|^2$. If we add an impulse noise $b$, obtain : 
 $$\mathcal{F}(R(D_{\theta}(v+b)))(\xi_\theta) = \|\bm{\xi}_\theta\|^2 (|\hat{h}(\bm{\xi}_\theta)|^2|\hat{u}(\bm{\xi}_\theta)|^2 + |\hat{b}(\bm{\xi}_\theta)|^2)$$
 So the noise will add a bias to the estimation of $|\hat{h}|$, especially on high frequencies which will wider the autocorrelation and wrong the estimation.\\
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{../results/noise_test.png}
-    \caption{Comparison of estimated kernels with different noise levels (SNR in dB).}
-    \label{fig:noise_kernel_comparison}
-\end{figure}  
 
 Figure~\ref{fig:noise_kernel_comparison} illustrates more precisely how the Goldstein--Fattal
 kernel estimation behaves in the presence of additive noise. For noise-free or mildly noisy
@@ -453,10 +484,17 @@ autocorrelations used to recover $|\hat h|^2$ become strongly corrupted; as a re
 estimated kernels lose their elongated structure and concentrate most of their energy on a few
 spurious peaks. The deconvolved images then exhibit heavy ringing and texture-like artefacts,
 and the PSNR drops dramatically (down to about $9\,\mathrm{dB}$ for $\mathrm{std}=20$). These
-experiments confirm the analysis of Anger \emph{et al.}, namely that the Goldstein--Fattal
-estimator is reasonably stable for low noise levels but degrades quickly when the noise variance
+experiments highlight that the Goldstein--Fattal estimator is reasonably stable for low noise levels but degrades quickly when the noise variance
 becomes too large, since the projection-based whitening does not intrinsically denoise the
 observations and mainly transfers the noise into the estimated kernel.%
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/noise_test.png}
+    \caption{Comparison of estimated kernels with different noise levels (SNR in dB).}
+    \label{fig:noise_kernel_comparison}
+\end{figure}  
 
 
 \subsection{Kernel size robustness}
@@ -475,8 +513,7 @@ Goldstein--Fattal estimation procedure and on the subsequent TV deconvolution. F
 motion length ($K=15$), the estimated kernel is reasonably close to the true diagonal blur and
 the restored image remains visually sharp, with a PSNR of about $26.7\,\mathrm{dB}$. As the
 kernel size increases ($K=25$ and $K=35$), the degradation becomes much more pronounced: although
-the estimated kernels still exhibit an elongated diagonal structure, they contain many secondary
-lobes and their support no longer matches the true one. The corresponding deconvolved images are
+the estimated kernels still exhibit an elongated diagonal structure, they approximate the true kernel better but only in the center. On the edges, the error is much more pronounced The corresponding deconvolved images are
 dominated by strong oscillations and wavy artefacts along the blur direction, and the PSNR drops
 to roughly $20.3\,\mathrm{dB}$ and $19.0\,\mathrm{dB}$, respectively. This behaviour can be
 explained by the fact that long motion blurs remove a large portion of the high–frequency content
@@ -492,25 +529,19 @@ blur extent grows.
     \centering
     \includegraphics[width=1\linewidth]{../results/real_images_test.png}
     \caption{Comparison of estimated kernels with different noise levels (SNR in dB).}
-    \label{fig:noise_kernel_comparison}
+    \label{fig:real_images_test}
 \end{figure}
 
-Figure~\ref{fig:noise_kernel_comparison} shows the behaviour of the method on real camera-blurred images. In the first three examples, taken from standard natural-image datasets, the blur remains relatively mild and can be reasonably approximated by a spatially invariant motion kernel. Under these conditions, the Goldstein–Fattal estimator produces compact and coherent kernels with a clear dominant direction, and the subsequent TV deconvolution successfully sharpens the images, restoring edges and fine structures without introducing strong artefacts.
+Figure~\ref{fig:real_images_test} shows the behaviour of the method on real camera-blurred images. In the first three examples, taken from standard natural-image datasets, the blur remains relatively mild and can be reasonably approximated by a spatially invariant motion kernel. Under these conditions, the Goldstein–Fattal estimator produces compact and coherent kernels with a clear dominant direction, and the subsequent TV deconvolution successfully sharpens the images, restoring edges and fine structures without introducing strong artefacts.
 
 The last two rows, however, correspond to personal RAW photographs captured hand-held, and the method fails to recover meaningful kernels. Here, the camera motion is likely much more complex—combining small 3D rotations, slight lens defocus, sensor noise, and potentially rolling-shutter distortions. Such blur is no longer well modelled by a single convolution kernel. As a result, the estimated kernels become highly fragmented and irregular, and the deconvolution step is unable to restore the images, yielding outputs that remain blurry or exhibit additional artefacts.
+Also, the blur kernel must be too large for the method to work properly.
 
 These experiments highlight an important limitation: the method performs reliably when the blur is simple and approximately convolutional, but breaks down on realistic handheld RAW images where the true camera motion deviates significantly from the simplified model.
 
 \subsection{Compressed images robustness}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{../results/compressed_test.png}
-    \caption{Comparison of estimated kernels and deconvolved images for different JPEG compression levels (quality factor $Q=75$, $Q=50$, $Q=25$, $Q=10$).}
-    \label{fig:jpeg_robustness}
-\end{figure}
-
-Figure~\ref{fig:compressed_robustness} illustrates the behaviour of the proposed
+Figure~\ref{fig:jpeg_robustness} illustrates the behaviour of the proposed
 pipeline when the blurred image is further degraded by JPEG compression at
 different quality factors. The first row corresponds to the reference PNG image:
 the estimated kernel is compact and closely matches the ground truth, and the
@@ -529,6 +560,14 @@ $\approx 27.0\,\mathrm{dB}$ for quality $10$). Overall, the experiments
 indicate that the method tolerates typical JPEG compression levels well, and
 only starts to degrade for very aggressive compression where the image content
 itself is strongly distorted.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{../results/compressed_test.png}
+    \caption{Comparison of estimated kernels and deconvolved images for different JPEG compression levels (quality factor $Q=75$, $Q=50$, $Q=25$, $Q=10$).}
+    \label{fig:jpeg_robustness}
+\end{figure}
+
 
 
 
