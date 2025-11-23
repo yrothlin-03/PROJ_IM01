@@ -1,159 +1,186 @@
 \documentclass[a4paper,11pt]{article}
 
-% Encodage et langue
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[french]{babel}
 \usepackage{bm}
 
-% Maths et symboles
 \usepackage{amsmath, amssymb}
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage[hidelinks]{hyperref}
 
-% Mise en page
 \usepackage{geometry}
 \geometry{margin=2cm}
 
-% Code source
 \usepackage{listings}
 \usepackage{xcolor}
-\lstset{
-    language=Python,
-    backgroundcolor=\color{gray!10},
-    basicstyle=\ttfamily\small,
-    frame=single,
-    breaklines=true
-}
+
 
 \title{Report - Image Restoration by Inverse Problem with Kernel Estimation}
 \author{Rothlingshofer Yanic, Douar Lounes}
 
 
-% Document
 \begin{document}
-\maketitle
 
+\begin{titlepage}
+    \thispagestyle{empty}
+    
+    \noindent
+    \includegraphics[width=0.2\textwidth]{../figures/logo_TP.png}
+    
+    \vspace{2cm}
+    
+    \begin{center}
+        {\LARGE \textbf{Image Restoration by Inverse Problem}}\\[0.3cm]
+        {\LARGE \textbf{with Kernel Estimation}}\\[1cm]
+        
+        {\Large Final Report}\\[1.5cm]
+    \end{center}
+    
+    \begin{flushleft}
+        \textbf{Date :} 16/11/2025\\[0.3cm]
+        \textbf{Students :} Rothlingshofer Yanic, Douar Lounes\\[0.3cm]
+        \textbf{Supervisor :} Saïd Ladjal\\[0.3cm]
+        \textbf{School :} Télécom Paris\\[0.3cm]
+        \textbf{Course :} CSC\_4IM01\_TP\\[0.3cm]
+        \textbf{Code :} \url{https://github.com/yrothlin-03/PROJ_IM01/tree/main}
+    \end{flushleft}
+    
+    \vfill
+\end{titlepage}
+  
+\setcounter{page}{1}
 
 \section{Introduction}
 
 Cameras and photographic equipment overall have seen significant improvements over the last decades.
-However, to be able to capture high-quality images in all conditions remains a challenge.
-In particular, you need to have sufficient time exposure to capture enough light, which can lead to motion blur
-if the camera or the subject moves during the exposure.
-To address this issue, various image restoration techniques have been developed over the years.
-Since the advent of deep learning, most state-of-the-art methods now rely on neural networks trained on large datasets of images.
-However, these methods often require significant computational ressources and need a huge amount of training data to generalize well.
-That is why there exists also a class of more traditional methods that rely on mathematical approaches. The main methods being based on bayesian of MAP approaches, on sparsity priors models or 
-on variational methods and try to recover the image and the blur kernel at the same time.
-In this report, we focus on a variational approach that separates the blur kernel estimation from the image restoration.
-That is, we first estimate the blur kernel from the blurred image using prior knowledge on the spectre of images. 
-Then we deconvolve the image using the estimated kernel in a minimization framework with total variation regularization using the split-bregman method which will be briefly detailed.
-This approach has the advantage of being interpretable and not requiring any training data.
-We will present the mathematical formulation of the problem, the kernel estimation method, and the results obtained
+However, capturing high-quality images in all conditions remains challenging, in particular in low-light situations where long exposure times are required and even small camera or scene motions lead to visible blur.
+Image restoration and, more specifically, image deblurring have therefore been extensively studied.
+Classical blind deconvolution methods explicitly model the image formation process as a convolution with an unknown point spread function (or blur kernel) and formulate its recovery in a Bayesian or maximum a posteriori (MAP) framework, combined with suitable priors on the latent sharp image such as heavy–tailed gradient or sparsity models, or variational regularisation terms \cite{MAP_bay,hyperlaplacian,hyperlap_blind}.
+In parallel, most recent state-of-the-art approaches rely on deep neural networks trained on large datasets of blurred and sharp image pairs; these methods often achieve impressive performance but require substantial computational resources and large amounts of training data, and their internal representations are generally hard to interpret.
 
-\subsection{Mathematical Model for deblurring}
-In most methods for image deblurring, we assume that the motion blur can be modeled as a uniform linear motion which leads to a convolution model. 
-However this model has its limitations since real-world blurs can usually be described as 3D rotations of the camera which leads to non-uniform blurs.
-In this report we will focus on uniform blurs. To this extent, given a sharp image $u\in \mathbb{R}^2$ and a blur kernel $k\in \mathbb{R}^2$, the blurred image $v\in \mathbb{R}^2$ follows the equation :
-$$
-v = u * k + b
-$$
-where $b$ is an additive impulse noise.
-From this model, two goals :
+In this report, we deliberately follow a more traditional variational strategy and decouple the blur-kernel estimation from the image restoration.
+First, we estimate the blur kernel from the blurred image by exploiting prior knowledge on natural image power spectra and on the effect of motion blur in the Fourier domain, following the Goldstein–Fattal framework as analysed by Anger et al. \cite{gf}.
+This yields an approximation of the modulus of the kernel’s Fourier transform from which a spatial kernel can be reconstructed.
+Then, assuming this kernel to be known, we perform a non-blind deconvolution in a variational setting with total variation (TV) regularisation, which we solve using the Split Bregman method \cite{goldsb,tvipol}.
+This pipeline is fully interpretable, does not require any training data, and provides a simple variational baseline compared to more sophisticated Bayesian or hyper-Laplacian–prior blind-deblurring methods \cite{MAP_bay,hyperlaplacian,hyperlap_blind}.
+In the following, we present the mathematical formulation of the problem, the kernel estimation method, and the results obtained with this approach.
+
+\subsection{Mathematical model for deblurring}
+Most image deblurring methods rely on a simplified acquisition model in which the motion blur is spatially invariant and can be represented as a convolution with a blur kernel. This corresponds to a uniform motion blur acting identically at every pixel. In practice, however, real camera shake often combines 3D rotations of the sensor and depth variations in the scene, which lead to spatially varying (non-uniform) blurs. In this work we restrict ourselves to the spatially invariant case in order to obtain a tractable model and a clearer analysis.
+
+Let $u$ denote the unknown sharp image, $k$ the blur kernel (or point spread function), and $v$ the observed blurred image. In the discrete setting, these are defined on a finite grid and can be seen as arrays of real numbers. The forward model is written as
+\[
+v = u * k + b,
+\]
+where $*$ denotes discrete convolution and $b$ is an additive noise term. In our experiments, $b$ accounts for sensor noise and possible modelling errors; depending on the setting it can be closer to Gaussian or impulsive noise, but in all cases it perturbs the ideal convolution model.
+
+Starting from this formulation, we address two main tasks:
 \begin{itemize}
-    \item Estimate the blur kernel $k$ from the blurred image $v$.
-    \item Restore the sharp image $u$ from the blurred image $v$ and the estimated kernel $k$.
-    \item Both these problems are ill-posed and require the use of priors or regularization terms to obtain satisfying results.
+    \item \textbf{Kernel estimation (blind deblurring):} estimate the blur kernel $k$ from the blurred image $v$ alone.
+    \item \textbf{Image restoration (non-blind deblurring):} restore the sharp image $u$ from $v$ when an estimate of $k$ is available.
 \end{itemize}
-For kernel estimation, we will use the prior knowledge that natural images have a characteristic power spectrum that decreases with frequency with a certain model.
-The main idea is that by blurring an image we transform its power spectrum, especially on high frequencies. So by supposing a model for the power spectrum, the kernel will leave traces in the spectrum that can be revealed using a derivative filter.
-This way we obtain an estimation of the modul of the kernel's fourier transform and we can recover the kernel by drawing random phases and keep the one with better results.
-For image restoration, we will use a variational approach with total variation regularization. TV regularization is a way to preserve edges and to model a constraint for natural images (it reduces Gibbs oscillation due to deconvolution). That is : 
-$$\hat{u} = \arg\min_u \frac{1}{2}\|u*k - v\|_2^2 + \lambda \| \nabla u \|_1$$
-We will solve this problem using the split-Bregman method which separates the problem into two subproblems. 
-First we introduce an auxiliary variable $d$ and we minimize such that $d = \nabla u$. Then we minimise the previous equation with $d=\nabla u$ (+ an error term).
+Both problems are severely ill-posed: many pairs $(u,k)$ can produce almost the same observation $v$, especially in the presence of noise. To obtain meaningful solutions, one must introduce prior information or regularisation terms, either on the image, on the kernel, or on both.
+
+For kernel estimation, we exploit the fact that natural images have a characteristic power spectrum that decays with the spatial frequency. Blurring an image modifies this spectrum, in particular at high frequencies. Under a suitable model for the power decay of sharp images, the blur kernel leaves a detectable footprint in the spectrum that can be enhanced by directional derivative filters. This allows us to recover an estimate of the modulus of the kernel’s Fourier transform. A family of candidate kernels is then obtained by combining this modulus with different random phase fields, reconstructing each candidate in the spatial domain, enforcing basic constraints (non-negativity, normalisation, compact support), and keeping the kernel that yields the best deconvolution result.
+
+For image restoration, once an estimate of $k$ is available, we adopt a variational approach with total variation (TV) regularisation. The restored image $\hat{u}$ is defined as the solution of
+\[
+\hat{u} = \arg\min_u \frac{\lambda}{2}\,\|u * k - v\|_2^2 + \|\nabla u\|_1,
+\]
+where $\nabla u$ denotes the discrete gradient of $u$, $\|\nabla u\|_1$ is the isotropic TV semi-norm, and $\lambda > 0$ controls the balance between data fidelity and regularisation. The TV prior encourages piecewise-smooth images with sharp edges, which is well suited to natural images and helps suppress Gibbs oscillations introduced by deconvolution. We solve this optimisation problem using the split-Bregman method, which introduces an auxiliary variable to decouple the TV term from the convolution term and leads to an efficient alternating minimisation scheme. The details of this algorithm are presented in the dedicated section on TV-regularised deconvolution.
 
 
-\section{Kernel Estimation Method}
+\section{Kernel estimation method}
 
-Given a frequency vector $\bm{\xi}\in \mathbb{R}^2$ different than $0$, we denote $\mathbf{n}_{\theta} = \frac{\bm{\xi}}{\|\bm{\xi}\|} = (\cos(\theta),\sin(\theta))$.\\
-We suppose the that the power spectrum of a natural image $u$ adopt the following decay law : 
-$$
-|\hat{u}(\bm{\xi})|^2 = \frac{1}{\epsilon + c_\theta\|\bm{\xi}\|^{2}}
-$$
-where $c_\theta>0$ and $\epsilon>0$ are constants.
-The idea is to extend the isotropic model (where $c$ is independent of $\theta$) to an anisotropic model where $c_\theta$ depends on the direction $\theta$.
-This way, we can capture more information about the image structure and on which direction the blur kernel has more impact.\\
-We suppose that the blurred kernel $h$ is \textbf{non-negative}, \textbf{normalized} and has a \textbf{compact support}.
-Now, let us suppose that an image $u$ has enough regularity to take its directional derivative with regard to the vector $\mathbf{n}_{\theta}$. Then we have that : 
-$$\mathcal{F}(D_{\theta}u(\bm{\xi})) = i(\bm{\xi}\cdot \mathbf{n}_{\theta})\hat{u}(\bm{\xi})$$
-Hence with $v = h*u$ : 
+The Goldstein--Fattal kernel estimation strategy relies on a simple statistical model for natural images in the Fourier domain and on directional derivatives evaluated along different orientations \cite{gf}. Given a frequency vector $\bm{\xi}\in\mathbb{R}^2\setminus\{0\}$, we denote its associated direction by
+\[
+\mathbf{n}_\theta = \frac{\bm{\xi}}{\|\bm{\xi}\|} = (\cos\theta,\sin\theta).
+\]
+We assume that the power spectrum of a sharp natural image $u$ obeys an anisotropic $1/f^2$-type decay law of the form
+\[
+|\hat{u}(\bm{\xi})|^2 \;=\; \frac{1}{\varepsilon + c_\theta \|\bm{\xi}\|^{2}},
+\]
+where $\varepsilon>0$ is a small constant and $c_\theta>0$ depends on the direction $\theta$. In the isotropic case, $c_\theta$ is independent of $\theta$; here we extend this model to the anisotropic setting in order to better capture oriented structures and the directional effect of motion blur.
+
+We denote by $h$ the blur kernel and make the standard assumptions that $h$ is \textbf{non-negative}, \textbf{normalised} and has \textbf{compact support}. Let us suppose that $u$ is regular enough so that its directional derivative $D_\theta u$ along $\mathbf{n}_\theta$ is well defined. The Fourier transform of this derivative is then given by
+\[
+\mathcal{F}(D_\theta u)(\bm{\xi}) = i(\bm{\xi}\cdot\mathbf{n}_\theta)\,\hat u(\bm{\xi}).
+\]
+If $v = h * u$ denotes the blurred image, we obtain along the ray $\bm{\xi}_\theta = \rho\,\mathbf{n}_\theta$:
 \begin{align*}
-|\mathcal{F}(D_{\theta}v)(\bm{\xi}_\theta)|^2 
-&= |i(\bm{\xi}_\theta \cdot \mathbf{n}_{\theta})|^2 \, |\hat{v}(\bm{\xi}_\theta)|^2 \\
-&= |\bm{\xi}_\theta|^2 \, |\hat{u}(\bm{\xi}_\theta)|^2 \, |\hat{h}(\bm{\xi}_\theta)|^2 \\
-&= |\bm{\xi}_\theta|^2 \cdot \frac{1}{\epsilon + c_\theta^{-1} |\bm{\xi}_\theta|^2} \, |\hat{h}(\bm{\xi}_\theta)|^2 \\
-&= c_\theta \, |\hat{h}(\bm{\xi}_\theta)|^2 \left( 1 - \frac{\epsilon c_\theta}{\epsilon c_\theta + |\bm{\xi}_\theta|^2} \right) \\
-&= c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 - c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 \frac{\epsilon c_\theta}{\epsilon c_\theta + |\bm{\xi}_\theta|^2} \\
-&= c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|),
+\big|\mathcal{F}(D_\theta v)(\bm{\xi}_\theta)\big|^2
+&= \big|i(\bm{\xi}_\theta\cdot\mathbf{n}_\theta)\big|^2\,|\hat v(\bm{\xi}_\theta)|^2 \\
+&= \|\bm{\xi}_\theta\|^2\,|\hat u(\bm{\xi}_\theta)|^2\,|\hat h(\bm{\xi}_\theta)|^2 \\
+&= \frac{\|\bm{\xi}_\theta\|^2}{\varepsilon + c_\theta \|\bm{\xi}_\theta\|^2}\,|\hat h(\bm{\xi}_\theta)|^2 \\
+&= c_\theta\,|\hat h(\bm{\xi}_\theta)|^2\left(1 - \frac{\varepsilon c_\theta}{\varepsilon c_\theta + \|\bm{\xi}_\theta\|^2}\right) \\
+&= c_\theta\,|\hat h(\bm{\xi}_\theta)|^2 + \hat r_\theta^\varepsilon(\|\bm{\xi}_\theta\|),
 \end{align*}
-Now, using autocorrelation $R$ and the Parseval's theorem ($\mathcal{F}((R)(f))(\xi) =|\hat{f}(\xi)|^2$), we have :
-$$
-\mathcal{F}((R)(D_{\theta}v))(\bm{\xi}_\theta) = c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|)
-$$
-Furthermore, we can show that $\hat{r}^{\epsilon}_\theta(|\bm{\xi}_\theta|)$ can be approximated as a constant (small derivatives) and so :
-$$
-\mathcal{F}((R)(D_{\theta}v))(\bm{\xi}_\theta) = c_\theta |\hat{h}(\bm{\xi}_\theta)|^2 + \mu_\theta
-$$
-Since $\mu_\theta$ is a constant (and $h$ is supposed to have a finite support), we can compute it by taking a specific value on the frequency axis at the angle $\theta$. That is for instance an extreme value of the support ($s_{\theta}$).
-To eliminate $c_\theta$, we use that the kernel $h$ is non–negative and normalized, hence its shear projection $P_\theta(h)$ also satisfies
+where the remainder term
+\[
+\hat r_\theta^\varepsilon(\|\bm{\xi}_\theta\|)
+= -\,c_\theta\,|\hat h(\bm{\xi}_\theta)|^2\,\frac{\varepsilon c_\theta}{\varepsilon c_\theta + \|\bm{\xi}_\theta\|^2}
+\]
+is small for frequencies $\|\bm{\xi}_\theta\|$ not too close to zero.
+
+Introducing the autocorrelation operator $R$ and using Parseval's theorem, we have
+\[
+\mathcal{F}\big(R(D_\theta v)\big)(\bm{\xi}_\theta)
+= \big|\mathcal{F}(D_\theta v)(\bm{\xi}_\theta)\big|^2
+= c_\theta\,|\hat h(\bm{\xi}_\theta)|^2 + \hat r_\theta^\varepsilon(\|\bm{\xi}_\theta\|).
+\]
+For moderate derivatives, $\hat r_\theta^\varepsilon$ can be approximated by a constant with respect to $\|\bm{\xi}_\theta\|$, so we write
+\[
+\mathcal{F}\big(R(D_\theta v)\big)(\bm{\xi}_\theta)
+\approx c_\theta\,|\hat h(\bm{\xi}_\theta)|^2 + \mu_\theta,
+\]
+where $\mu_\theta$ is a small directional bias. Since $\mu_\theta$ is constant along the ray and $h$ has compact support, it can be estimated by sampling the spectrum at a sufficiently large frequency $s_\theta$ on the direction $\theta$.
+
+To eliminate $c_\theta$, we use the fact that $h$ is non-negative and normalised. Its shear projection $P_\theta(h)$ along direction $\theta$ therefore satisfies
 \[
 \int_{\mathbb{R}} P_\theta(h)(x)\,dx = 1.
 \]
-By Proposition 2 and Proposition 3 of the article, we have
+By Propositions 2 and 3 in \cite{gf}, we have
 \[
-\mathcal{F}(R(P_\theta(h)))(\xi)=|\widehat{P_\theta(h)}(\xi)|^2 = |\hat h(\xi\,\mathbf{n}_\theta)|^2 .
+\mathcal{F}\big(R(P_\theta(h))\big)(\xi)
+= \big|\widehat{P_\theta(h)}(\xi)\big|^2
+= \big|\hat h(\xi\,\mathbf{n}_\theta)\big|^2.
 \]
-Therefore,
+Integrating along the frequency axis yields
 \begin{align*}
-\int_{\mathbb{R}} c_\theta\,|\hat h(\xi\,\mathbf{n}_\theta)|^2\,d\xi
-&= c_\theta \int_{\mathbb{R}} \mathcal{F}(R(P_\theta(h)))(\xi)\,d\xi \\
-&= c_\theta \int_{\mathbb{R}} R(P_\theta(h))(x)\,dx \\
-&= c_\theta.
+\int_{\mathbb{R}} c_\theta\,\big|\hat h(\xi\,\mathbf{n}_\theta)\big|^2\,d\xi
+&= c_\theta \int_{\mathbb{R}} \mathcal{F}\big(R(P_\theta(h))\big)(\xi)\,d\xi \\
+&= c_\theta \int_{\mathbb{R}} R(P_\theta(h))(x)\,dx \\ 
+&= c_\theta,
 \end{align*}
-Therefore, we are able to estimate $c_\theta$, $\mu_\theta$ and so $|\hat{h}(\xi\mathbf{n}_{\theta})|^2$ for every $\theta$. So we are able to recover $|\hat{h}|^2$.\\
+so $c_\theta$ can be recovered directly from the autocorrelation of the shear projection. Combining this with the previous relation for $\mathcal{F}(R(D_\theta v))$ allows us to estimate $c_\theta$, $\mu_\theta$ and hence $|\hat h(\xi\mathbf{n}_\theta)|^2$ for each direction $\theta$. By sweeping over a set of angles, we obtain an estimate of $|\hat h|^2$ on a polar grid in the Fourier domain.
 
-Once we have an estimation of $|\hat{h}|$, we can recover $h$ by drawing random phases, reconstructing $h$ by inverse fourier transform, enforcing the three constraints on $h$ and deconvolving. The best $h$ is retained.
+Once an estimate of $|\hat h|$ is available, we reconstruct spatial-domain kernel candidates $h$ by assigning random phase fields to the modulus, applying the inverse Fourier transform, and enforcing the three constraints on $h$ (non-negativity, normalisation and compact support). For each candidate kernel, we perform a deconvolution and evaluate the restoration quality (e.g., via PSNR or visual inspection). The kernel that produces the best deblurred image is finally retained as our estimate of the motion blur.
 
-\subsection*{Implementation details}
+ \subsection*{Implementation details}
 
 \paragraph{Directional derivatives}
-To compute the directional derivative, we use a 1D filter 
-$$d = [3, -32, 168, -672, 0, 672, -168, 32, -3]/840$$
+To approximate the directional derivative along an angle $\theta$, we convolve the image with a 1D finite-difference filter oriented in the corresponding direction. In practice, we use the 9-tap high-order derivative filter
+\[
+d = \frac{1}{840}\,[3,\,-32,\,168,\,-672,\,0,\,672,\,-168,\,32,\,-3],
+\]
+which provides an accurate approximation of the first derivative while attenuating numerical noise. The filter is applied along the projection of the image onto the chosen direction, consistently with the theoretical formulation in terms of $D_\theta u$.
 
 \paragraph{Compensation filter}
-Furthermore, the idea behind this method is the following. 
-Applying a blur kernel mainly attenuates high frequencies. Under the assumed power–decay law, this attenuation behaves like a whitening step, so taking directional derivatives emphasises the high–frequency content along a chosen direction of the spectrum.  
-The autocorrelation of this 1D signal then provides an estimate of the spatial width of the kernel in that direction, since autocorrelation measures how much a signal resembles a shifted version of itself.  
-When an image is blurred (for instance along one direction), its spectrum becomes wider in that direction, and consequently the autocorrelation also becomes wider. This is why studying the autocorrelation of the shear projection of the directional derivatives allows us to recover the modulus of the kernel’s Fourier transform.  
+The core idea of the Goldstein--Fattal method is that applying a blur kernel mainly attenuates high frequencies. Under the assumed power–decay law for natural images, this attenuation acts as an approximate whitening, so taking directional derivatives emphasises the residual high–frequency content along a chosen direction in the spectrum. The autocorrelation of this 1D signal then provides information about the spatial width of the kernel in that direction, since autocorrelation measures how much a signal resembles shifted versions of itself. When an image is blurred, its spectrum becomes narrower along the blur direction, and the corresponding autocorrelation becomes wider; studying the autocorrelation of the shear projection of the directional derivatives therefore allows us to recover the modulus of the kernel’s Fourier transform.
 
-In an ideal sharp image, the whitened autocorrelation would be nearly a Dirac peak. Real images, however, contain noise, artefacts and intrinsic camera blur, which broaden this peak.  
-To ensure that the autocorrelation width reflects only the motion blur, a compensation filter is applied to sharpen it. This is performed by deconvolving the autocorrelation with a small symmetric kernel using conjugate gradient descent. If the result exhibits negative values near the centre, the deconvolution is discarded and the original autocorrelation is kept.
+In an ideal sharp image that has been perfectly whitened, the autocorrelation would be close to a Dirac peak. Real images, however, contain noise, sensor blur and modelling errors, which broaden this peak and bias the estimation of the kernel width. To mitigate this effect, we apply a compensation filter that sharpens the autocorrelation. Concretely, we deconvolve the autocorrelation with a small symmetric kernel using a few iterations of conjugate gradient descent. If the resulting compensated autocorrelation exhibits significant negative values near the centre (which would be incompatible with a non-negative blur kernel), the deconvolution is deemed unstable and we revert to the original autocorrelation instead.
 
 \paragraph{Initial support estimation}
-
-To recover the support of the autocorrelation on a particular direction, we basically take the value at which the minimum occurs. 
-However this gives an estimate of the support that is very noisy. 
-To improve this, we smooth it by applying a Lipshitz constraint such that $$|s_{\theta_i} - s_{\theta_{j}}| \leq \kappa |i - j|$$ with $\kappa$ a constant.
+For each direction $\theta$, we first obtain a rough estimate of the support radius of the autocorrelation by locating the position of its first minimum along that direction. This yields a discrete sequence of radii $\{s_{\theta_i}\}_i$ sampled on a finite set of angles. In practice, this raw estimate is quite noisy and may contain abrupt oscillations from one angle to the next. To regularise it, we enforce a Lipschitz-type constraint of the form
+\[
+|s_{\theta_i} - s_{\theta_j}| \;\leq\; \kappa\,|i - j|,
+\]
+where $\kappa$ is a user-defined constant that controls the maximum allowed variation of the support as a function of the angle index. This smoothing step produces a more coherent angular profile of the kernel support, which is crucial for reconstructing a stable estimate of $|\hat h|^2$.
 
 \paragraph{Support re-estimation}
-Once we have recovered a kernel candidate $h$ we can re-estimate its support by taking the value index $k$ such that $95\%$ of the energy of the autocorrelation is contained in this interval (on each direction).
-
-
-
-
-
+Once a spatial-domain kernel candidate $h$ has been reconstructed, we refine its effective support by analysing the autocorrelation again. For each direction, we compute the cumulative energy of the autocorrelation as a function of the radius and select the smallest index $k$ such that $95\%$ of the total energy is contained within the corresponding interval around the origin. The support is then truncated accordingly. This re-estimation step removes spurious tails and secondary lobes in the kernel, and helps stabilise the subsequent TV-deconvolution by limiting the influence of poorly constrained regions of $h$.
 
 
 
@@ -168,82 +195,137 @@ Once we have recovered a kernel candidate $h$ we can re-estimate its support by 
 
 \section{Deconvolution with Total Variation Regularization}
 
-We assume that the blur kernel $h$ is known, and we aim to recover the sharp image $u$ by solving
-the following minimization problem:
+We now assume that the blur kernel $h$ is known, and focus on the non-blind
+restoration of the sharp image $u$. Given the blurred observation $v$, we seek
+a balance between fidelity to the data and regularity of the solution by
+minimising the classical TV-regularised functional
 \[
 \hat{u}
 =
 \arg\min_{u}
-\;\|h * u - v\|_2^2
+\;\frac{\lambda}{2}\|h * u - v\|_2^2
 \;+\;
-\lambda \|\nabla u\|_1 ,
+\|\nabla u\|_1,
 \]
-which corresponds to the classical Total Variation (TV) regularization model for image deblurring.
+where $\nabla u$ denotes the discrete gradient, $\|\nabla u\|_1$ is the
+(isotropic) total variation semi-norm, and $\lambda>0$ controls the trade-off
+between data fidelity and regularisation. The quadratic term enforces
+consistency with the convolution model, while the TV prior favours
+piecewise-smooth images with sharp edges and helps suppress ringing artefacts
+introduced by deconvolution.
 
-To solve this problem, we rely on the split-Bregman method, which introduces an auxiliary
-variable $d$ to enforce the constraint $d = \nabla u$. At iteration $k+1$, we solve:
+Directly minimising this functional is difficult because of the non-differentiable
+TV term. We therefore resort to the split-Bregman method \cite{goldsb,tvipol},
+which introduces an auxiliary variable $d$ to decouple the TV regulariser from
+the data term. The constrained problem
+\[
+\min_{u,d}\;\frac{\lambda}{2}\|h*u - v\|_2^2 + \|d\|_1
+\quad\text{subject to}\quad d = \nabla u
+\]
+is relaxed into the sequence of unconstrained problems
 \[
 (u_{k+1}, d_{k+1})
 =
 \arg\min_{u,\, d}
 \;
-\|h*u - v\|_2^2
+\frac{\lambda}{2}\|h*u - v\|_2^2
 +
-\frac{\lambda}{2}\|d\|_1
+\|d\|_1
 +
 \frac{\gamma}{2}\|\nabla u - d - b_k\|_2^2,
 \]
-where $b_k$ is a Bregman (or residual) variable that accumulates the violation of the constraint
-$d = \nabla u$. We initialize $d_0 = 0$ and $b_0 = 0$.
+where $b_k$ is a Bregman (or residual) variable that accumulates the violation
+of the constraint $d = \nabla u$, and $\gamma>0$ is a penalty parameter. We
+initialise $d_0 = 0$ and $b_0 = 0$, and alternate between three steps.
 
 \paragraph{1. $u$-subproblem}
-We first minimize with respect to $u$, keeping $d$ and $b$ fixed. Assuming symmetric boundary
-conditions, the solution admits a closed-form expression in the Fourier domain:
+We first minimise with respect to $u$, keeping $d$ and $b$ fixed. This amounts
+to solving the quadratic problem
 \[
-u
+u_{k+1}
+=
+\arg\min_u\;
+\frac{\lambda}{2}\|h*u - v\|_2^2
++
+\frac{\gamma}{2}\|\nabla u - d_k - b_k\|_2^2.
+\]
+The associated Euler--Lagrange equation can be written as
+\[
+(\lambda\,h^\ast * h - \gamma\Delta)\,u
+=
+\lambda\,h^\ast * v + \gamma\,\mathrm{div}(d_k + b_k),
+\]
+where $h^\ast$ is the flipped kernel, $\Delta$ is the discrete Laplacian and
+$\mathrm{div}$ is the divergence operator (the negative adjoint of the
+gradient). Under circular or symmetric boundary conditions, the operators
+$h^\ast*h$ and $\Delta$ are diagonalised by a suitable discrete Fourier (or
+cosine) transform. Denoting by $\mathcal{F}$ this transform and by
+$\overline{\mathcal{F}(h)}$ the complex conjugate of the frequency response of
+$h$, we obtain the closed-form solution
+\[
+u_{k+1}
 =
 \mathcal{F}^{-1}\!\left[
 \frac{
-    \tfrac{\lambda}{\gamma}\,\overline{\mathcal{F}(h)} \cdot \mathcal{F}(E v)
-    -
-    \mathcal{F}\!\left(E\,\mathrm{div}(d - b)\right)
+    \lambda\,\overline{\mathcal{F}(h)} \cdot \mathcal{F}(v)
+    +
+    \gamma\,\mathcal{F}\!\big(\mathrm{div}(d_k + b_k)\big)
 }{
-    \tfrac{\lambda}{\gamma}\,|\mathcal{F}(h)|^2
+    \lambda\,|\mathcal{F}(h)|^2
     -
-    \mathcal{F}(\Delta)
+    \gamma\,\mathcal{F}(\Delta)
 }
 \right],
 \]
-where $Eu$ denotes the symmetrized extension of $u$, and $\Delta$ is the discrete Laplacian operator.
+which can be computed efficiently by element-wise operations in the transform
+domain.
 
 \paragraph{2. $d$-subproblem}
-Next, we minimize with respect to $d$:
+Next, we minimise with respect to $d$ by solving
 \[
-d_{i,j}
+d_{k+1}
 =
-\frac{\nabla u_{i,j} + b_{i,j}}{\lvert \nabla u_{i,j} + b_{i,j}\rvert}
-\;
+\arg\min_d\;
+\|d\|_1
++
+\frac{\gamma}{2}\|\nabla u_{k+1} - d - b_k\|_2^2.
+\]
+This problem decouples over the pixels and admits the closed-form solution
+given by anisotropic soft-thresholding (shrinkage):
+\[
+d_{i,j}^{k+1}
+=
+\mathrm{shrink}\big(\nabla u_{i,j}^{k+1} - b_{i,j}^k,\;1/\gamma\big)
+=
+\frac{\nabla u_{i,j}^{k+1} - b_{i,j}^k}{\big\lvert \nabla u_{i,j}^{k+1} - b_{i,j}^k\big\rvert}
+\,
 \max\!\left(
-    \lvert \nabla u_{i,j} + b_{i,j}\rvert - \frac{1}{\gamma},
+    \big\lvert \nabla u_{i,j}^{k+1} - b_{i,j}^k\big\rvert - \frac{1}{\gamma},
     \; 0
 \right),
 \]
-which corresponds to a soft-thresholding (shrinkage) step applied to the gradient.
+with the convention that the fraction is set to zero when the denominator
+vanishes.
 
 \paragraph{3. Bregman update}
-The residual variable is updated as:
+Finally, the residual variable is updated according to
 \[
 b_{k+1}
 =
-b_k + (\nabla u - d).
+b_k + (\nabla u_{k+1} - d_{k+1}),
 \]
+which drives the solution towards satisfaction of the constraint $d = \nabla u$.
 
 \paragraph{Stopping criterion}
-We iterate until convergence, for instance when
+The three steps above are iterated until convergence, for instance when
 \[
 \|u_{k+1} - u_k\|_2 < \eta,
 \]
-meaning that no significant improvement is achieved between successive iterations.
+for a prescribed tolerance $\eta>0$, or after a fixed maximum number of
+iterations. In practice, only a modest number of split-Bregman iterations is
+required to obtain visually satisfactory restorations, and the overall
+algorithm is competitive with other first-order methods commonly used for
+TV-based image deconvolution.
 
 
 
@@ -471,5 +553,7 @@ Finally, a promising perspective would be to hybridise this variational framewor
 In this report, we have studied a blind image deblurring pipeline that combines the Goldstein--Fattal kernel-estimation method with a TV-regularised deconvolution solved by the split-Bregman algorithm. On synthetic examples with moderate motion blur and limited noise, the approach proves capable of recovering reasonably accurate kernels and producing sharp restorations, provided that the blur is well approximated by a spatially invariant convolution. The experiments also highlight the importance of implementation choices such as boundary conditions and the tuning of the TV hyperparameters, which have a strong impact on both PSNR and visual quality. However, as soon as the acquisition deviates from the simplified forward model (e.g., complex hand-held camera shake, long motion paths, strong noise or heavy compression), the kernel estimation becomes unstable and the deconvolution step amplifies modelling errors, leading to ringing artefacts and poor restorations. Overall, while the method cannot compete with state-of-the-art deep learning or advanced Bayesian blind deconvolution algorithms on challenging real-world data, it remains attractive as a conceptually simple, interpretable and training-free baseline. The suggested extensions---towards more realistic blur models, more robust priors and possible hybrid variational/learning approaches---constitute natural perspectives for future work on this problem.
 
 
+\bibliographystyle{plain} 
+\bibliography{references}
 
 \end{document}

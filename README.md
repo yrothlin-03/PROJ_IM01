@@ -11,10 +11,9 @@ Code explanations :
 - test : contains different test functions to evaluate different aspects (robustness to noise, to kernel size, performance on real images, …).
 - main : containing the principal code to apply automatically the whole method.
 
-Brief summary of the method : 
-
-## Motion blur kernel estimation 
-
-
-## TV-deconvolution by Split-Bregman method
+## TO DO : 
+- finishing debug of kernel_estimation.
+- implementing hyperlaplacian regularization fo deconvolution.
+- improving power law decay model and pre-denoising before computing autocorrelation.
+- implementing a better compensation algorithm.
 

@@ -80,10 +80,15 @@ def show_power_spectrum(Hspectrum, iteration):
     plt.show()
     plt.close()
 
-def show_kernel(kernel, iteration):
+def show_kernel(kernel, iteration, score=None, is_symmetric=None):
     plt.figure()
     plt.imshow(kernel, cmap='gray')
-    plt.title(f"Estimated Blur Kernel - Iteration {iteration}")
+    title = f"Estimated Blur Kernel - Iteration {iteration}"
+    if score is not None:
+        title += f" | score = {score:.4f}"
+    if is_symmetric is not None:
+        title += " | symétrique" if is_symmetric else " | non symétrique"
+    plt.title(title)
     plt.colorbar()
     plt.savefig(f"kernel_est_bis/kernel_iteration_{iteration}.png", dpi=300, bbox_inches="tight")
     plt.show()
@@ -566,19 +571,19 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
         if verbose:
             show_power_spectrum(H2, m)
         cbest=None
+        best_is_flip = False
         P=Propose_patch_haute_variance(imgvars,img,taille_patch)
         for k in range(Ntries):
             # if verbose:
                 # print('boucle numéro',m, 'essai',k, 'sur ', Ntries)
             g=SinglePhaseRetrieval(abs(H2)**0.5,p,Mh=Nspectrenoyau)
             if (p//2)*2==p:
-
                 gdeconv=np.zeros((p+1,p+1))
                 gdeconv[:p,:p]=g
             else:
                 gdeconv=g
 
-            tmpim=tv_deconv(P,gdeconv, lam=2000,gamma=5,max_iters=40)
+            tmpim=tv_deconv(P,gdeconv,max_iters=40)
             c=score_restau(tmpim)
 
             # if verbose:
@@ -586,6 +591,7 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
             if cbest is None or c<cbest:
                 gbest=g.copy()
                 cbest=c
+                best_is_flip = False
             g=np.fliplr(np.flipud(g))
             if (p//2)*2==p:
                 gdeconv=np.zeros((p+1,p+1))
@@ -600,6 +606,7 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
             if c<cbest:
                 gbest=g.copy()
                 cbest=c
+                best_is_flip = True
         supports=Restimation_supports_noyau(gbest,p,thetas,ratio=0.05)
         if verbose:
             show_reestimated_support(supports, m)
@@ -607,7 +614,7 @@ def estime_noyau(img,p=25,Nouter=3,Ntries=30,Ninner=300,\
         #     viewimage(gbest,titre='tentative'+str(m))
         #     print('temps total de la boucle numéro',m ,'est ',time.time()-t0)
         if verbose:
-            show_kernel(gbest, m)
+            show_kernel(gbest, m, score=cbest, is_symmetric=best_is_flip)
         gbests.append(gbest)
     return gbest
 

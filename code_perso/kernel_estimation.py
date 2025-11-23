@@ -6,7 +6,7 @@ import scipy.ndimage
 from scipy.signal import convolve, fftconvolve
 from scipy.sparse.linalg import cg, LinearOperator
 import matplotlib.pyplot as plt
-from kernel_estimation_bis import compute_R
+# from kernel_estimation_bis import compute_R
 
 
 
@@ -43,13 +43,17 @@ def show_autocorr_compensated(R_comp: np.ndarray):
 
 
 def show_whitening(Dtheta, theta):
+    """Display the directional derivative D_theta v as an image.
+
+    Here D_theta v = v_x cos(theta) + v_y sin(theta) for a given angle.
+    """
     plt.figure()
-    plt.imshow(Dtheta, cmap='gray', aspect='auto')
-    plt.title(f"Whitening Matrix Dtheta for angle {theta}")
-    plt.xlabel("Theta Index")
-    plt.ylabel("Frequency Index")
+    plt.imshow(Dtheta, cmap='gray')
+    plt.title(f"Directional derivative $D_{{\\theta}} v$ for angle {theta:.2f} rad")
+    plt.xlabel("x")
+    plt.ylabel("y")
     plt.colorbar()
-    plt.savefig(f"kernel_est/whitening_matrix_theta_{theta}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"kernel_est/dtheta_v_theta_{theta:.2f}.png", dpi=300, bbox_inches="tight")
     plt.show()
     plt.close()
 
@@ -97,7 +101,7 @@ def show_reestimated_support(supports, iteration):
 
 
 def _score_kernel(hk: np.ndarray, P: np.ndarray) -> float:
-    d, _ = tv_deconv(P, hk)
+    d = tv_deconv(P, hk)
     gx, gy = _grad(d)
     grad = np.sqrt(gx * gx + gy * gy)
     l1 = float(np.sum(np.abs(grad)))
@@ -215,6 +219,7 @@ def _shear_projection_kernel(v: np.ndarray, angle: float) -> np.ndarray:
     return q
 
 
+
 def _deconv_1d_cg(y: np.ndarray, alph: float = 2.1, lam: float = 1e-2) -> np.ndarray:
     y = y.astype(np.float32)
     qp1 = int(y.shape[0])
@@ -267,7 +272,7 @@ def ComputeProjectionAngleSet(Mh: int, r: int = 4) -> np.ndarray:
     return np.array(sorted(A, reverse=True), dtype=np.float32)
 
 
-def ComputeProjectionsAutocorrelation(v: np.ndarray, AngleSet: np.ndarray, Mh: int, alph: float, r: int = 4, verbose: bool = False) -> np.ndarray:
+def ComputeProjectionsAutocorrelation(v: np.ndarray, AngleSet: np.ndarray, Mh: int, alph: float, r: int = 4, verbose: bool = False) -> tuple[np.ndarray, np.ndarray]:
     v = np.asarray(v, dtype=np.float32)
     if v.ndim == 3:
         v = v.mean(axis=2)
@@ -279,20 +284,34 @@ def ComputeProjectionsAutocorrelation(v: np.ndarray, AngleSet: np.ndarray, Mh: i
     vy = scipy.ndimage.convolve1d(v, d, axis=0, mode='reflect')
 
     win_len = r * Mh + 1
-    R = np.zeros((len(AngleSet), win_len), dtype=np.float32)
+    R_comp = np.zeros((len(AngleSet), win_len), dtype=np.float32)
+    R_raw = np.zeros((len(AngleSet), win_len), dtype=np.float32)
     if verbose:
         print("Computing projections' autocorrelations.")
+        n_angles = len(AngleSet)
+        if n_angles > 0:
+            whitening_indices = sorted(set([
+                0,
+                n_angles // 2,
+                max(n_angles - 1, 0)
+            ]))
+        else:
+            whitening_indices = []
+    else:
+        whitening_indices = []
+
     for i, angle in enumerate(AngleSet):
+        if verbose and i in whitening_indices:
+            Dtheta_v = vx * np.cos(angle) + vy * np.sin(angle)
+            show_whitening(Dtheta_v, angle)
 
         q = _shear_projection(vx, vy, angle)
-
         ac = _autocorr_1d(q, Mh, r=r)
-
         ac_deconv = _deconv_1d_cg(ac, alph=alph, lam=1e-2)
+        R_raw[i, :] = ac
+        R_comp[i, :] = ac_deconv
 
-        R[i, :] = ac_deconv
-
-    return R
+    return R_comp, R_raw
 
 def ComputeKernelProjectionsAutocorrelation(h: np.ndarray, AngleSet: np.ndarray, Mh: int, r: int = 4) -> np.ndarray:
     win_len = r * Mh + 1
@@ -354,7 +373,7 @@ def ReestimateSupport(h: np.ndarray, AngleSet: np.ndarray, Mh: int, threshold_fa
 
     return S
 
-def InitialSupportEstimation(R: np.ndarray,  Mh: int, r: int = 4, kappa: float = 2/70) -> np.ndarray:
+def InitialSupportEstimation(R: np.ndarray,  Mh: int, r: int = 4, kappa: float = 2/70) -> tuple[np.ndarray, np.ndarray]:
     n_angles, win_len = R.shape
     center = win_len // 2
 
@@ -373,7 +392,7 @@ def InitialSupportEstimation(R: np.ndarray,  Mh: int, r: int = 4, kappa: float =
             for j in range(n_angles):
                 S[j] = min(S[j], s_min[i] + kappa * abs(i - j))
 
-    return S
+    return S, s_min
 
 
 
@@ -535,24 +554,20 @@ def blur_kernel_estimation(v: np.ndarray, p=25, alph: float = 1, Nouter: int = 3
     if verbose:
         print(f"Number of projection angles: {len(A)} \n First angles (radians): {A[:5]}")
 
-
-    # R = ComputeProjectionsAutocorrelation(v, A, Mh, alph=alph, r=4, verbose=verbose)
-    R = compute_R(v, A, p)
+    R_comp, R_raw = ComputeProjectionsAutocorrelation(v, A, Mh, alph=alph, r=4, verbose=verbose)
+    # R_comp = compute_R(v, A, p)
     if verbose:
-        print("Computed projections' autocorrelations : len(R) =", R.shape)
-        show_autocorr(R)
-        plt.pause(10)
-        plt.close()
+        print("Computed raw projections' autocorrelations :", R_raw.shape)
+        show_autocorr(R_raw)
+        print("Computed compensated projections' autocorrelations :", R_comp.shape)
+        show_autocorr_compensated(R_comp)
 
+    R = R_comp
 
-    S = InitialSupportEstimation(R, Mh, r=4, kappa=2/70)
+    S, s_min = InitialSupportEstimation(R, Mh, r=4, kappa=2/70)
     if verbose:
         print("Initial support estimation done : len(S) =", S.shape)
-        plt.plot(S)
-        plt.title("Estimated support sizes per angle")
-        plt.show()
-        plt.pause(5)
-        plt.close()
+        show_initial_support(S, vals_min=s_min)
 
     h = np.zeros((Mh, Mh), dtype=np.float32)
 
@@ -562,27 +577,24 @@ def blur_kernel_estimation(v: np.ndarray, p=25, alph: float = 1, Nouter: int = 3
 
         H = EstimatePowerSpectrum(R, S, A, r=4)
 
-        if verbose: 
+        if verbose:
             print("Estimated power spectrum of the blur kernel : len(H), sum(H) =", H.shape, H.sum())
-            plt.imshow(H, cmap='hot')
-            plt.title(f"Estimated Power Spectrum at iteration {i+1}")
-            plt.show()
-            plt.pause(5)
-            plt.close()
+            show_power_spectrum(H, i + 1)
 
         h = PhaseRetrieval(v, H, Mh)
 
         if verbose:
             print("Phase retrieval done : len(h), sum(h) =", h.shape, h.sum())
-            plt.plot(h)
-            plt.title(f"Estimated Kernel at iteration {i+1}")
-            plt.show()
-            plt.pause(5)
-            plt.close()
+            show_kernel(h, i + 1)
 
         S = ReestimateSupport(h, A, Mh, threshold_factor=0.05)
+        if verbose:
+            print("Re-estimated support sizes at iteration", i + 1)
+            show_reestimated_support(S, i + 1)
 
     print(f"Final Kernel Estimated, h.size: {h.shape}")
+    if verbose:
+        show_kernel(h, iteration=Nouter)
     return h
 
 

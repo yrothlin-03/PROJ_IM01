@@ -1,19 +1,22 @@
 \documentclass{beamer}
 
+\usepackage[backend=biber,style=authoryear]{biblatex}
+\addbibresource{references.bib}
+
 \usetheme{Madrid} % Tu peux changer : Berlin, CambridgeUS, Warsaw, etc.
 
 \title{Image Restoration by Inverse Problem with Kernel Estimation}
 \author{Rothlingshofer Yanic \\ Douar Lounes}
 \date{21 novembre 2025}
+\titlegraphic{\includegraphics[width=2cm]{../figures/logo_TP.png}}
 
 \begin{document}
 
-% Page de titre
+
 \begin{frame}
     \titlepage
 \end{frame}
 
-% Plan
 \begin{frame}{Plan}
     \tableofcontents
 \end{frame}
@@ -23,11 +26,28 @@
 \begin{frame}{Context}
     \begin{itemize}
         \item Motion blur occurs when camera or scene motion affects the exposure.
-        \item Variational and Bayesian approaches historically dominate blind deblurring.
+        \item Variational and Bayesian approaches historically dominate blind deblurring. \cite{MAP_bay}
         \item Deep learning achieves strong results but requires large datasets and heavy computation.
-        \item We focus on an interpretable, training-free variational pipeline based on spectral priors.
+        \item We focus on an interpretable, training-free variational pipeline based on spectral priors.\cite{gf}
     \end{itemize}
 \end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../figures/blur_demo.png}
+        \caption{Example of a motion-blurred image. \cite{MAP_bay}}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../figures/blur_demo2.png}
+        \caption{Non-uniformity of motion blur.\cite{MAP_bay}}
+    \end{figure}
+\end{frame}
+
 
 \begin{frame}{Objectives}
     \begin{itemize}
@@ -80,7 +100,7 @@
     D_\theta v = (D_\theta u) * k + D_\theta b
     \]
     \[
-    \widehat{D_\theta v}(\xi n_\theta) = i(\xi n_\theta \cdot n_\theta)\, \widehat{u}(\xi n_\theta)\, \widehat{k}(\xi n_\theta) + \widehat{D_\theta b}(\xi n_\theta)
+    \widehat{D_\theta v}(\xi n_\theta) = i(\xi n_\theta \cdot n_\theta)\, \widehat{u}(\xi n_\theta)\, \widehat{k}(\xi n_\theta) + i(\xi n_\theta \cdot n_\theta)\,\hat{b}(\xi n_\theta)
     \]
     \begin{itemize}
         \item Whitening: $D_\theta$ flattens the spectrum of natural images.
@@ -91,34 +111,59 @@
 \end{frame}
 
 \begin{frame}{Autocorrelation Analysis}
+    Using Parseval's theorem:
     \[
-    \mathbb{E}\left(|\widehat{D_\theta v}(\xi n_\theta)|^2\right) 
-    = |\xi|^2 \, |\widehat{u}(\xi n_\theta)|^2 \, |\widehat{k}(\xi n_\theta)|^2 
-    + \mathbb{E}\left(|\widehat{D_\theta b}|^2\right)
+        F\big(R(D_\theta v)\big)(\xi n_\theta) = |\widehat{D_\theta v}(\xi n_\theta)|^2.
     \]
+    From the anisotropic power-law prior:
     \[
-    = c_\theta |\widehat{k}(\xi n_\theta)|^2 + \mu_\theta
+        |\widehat{D_\theta v}(\xi n_\theta)|^2 = c_\theta |\widehat{k}(\xi n_\theta)|^2 + \mu_\theta + \xi^2|\hat{b}(\xi n_\theta)|^2.
     \]
     \begin{itemize}
-        \item After whitening, the residual spectrum becomes linear in $|\widehat{k}|^2$.
-        \item $\mu_\theta$ is estimated using the kernel normalization constraint:
+        \item The whitened spectrum becomes affine in $|\widehat{k}|^2$.
+        \item $\mu_\theta$ is obtained from the kernel normalisation constraint:
         \[
-        \int_\mathbb{R} P_\theta(h)(x)\,dx = 1.
+            \int_\mathbb{R} P_\theta(h)(x)\,dx = 1.
         \]
-        \item Allows reconstruction of $|\widehat{k}(\xi)|^2$ for all $\theta$.
+        \item This allows estimating $|\widehat{k}(\xi)|^2$ for all angles $\theta$.
     \end{itemize}
 \end{frame}
 
 
 \begin{frame}{Autocorrelation Deconvolution with compensation filter}
+    After estimating the affine model
     \[
-    R_{D_{\theta} v} = R_{D_{\theta} u} * R_k + R_{D_{\theta} b}
+        F(R(D_\theta v))(\xi) = c_\theta |\widehat{k}(\xi n_\theta)|^2 + \mu_\theta,
     \]
+    the goal is to retrieve a sharper estimate of the directional autocorrelation.
+
+    \textbf{Autocorrelation relation:}
+    \[
+        R(D_\theta v) = c_\theta * R_k + \mu_\theta + .
+    \]
+
     \begin{itemize}
-        \item Autocorrelation of $D_\theta v$ gives access to the width of the blur in direction $\theta$.
-        \item A compensation filter deconvolves camera noise and intrinsic blur using CG iterations.
-        \item Negative lobes near the center invalidate the compensation and revert to the raw autocorrelation.
+        \item The width of $R(D_\theta v)$ encodes the blur extent along direction $\theta$.
+        \item A compensation filter refines this autocorrelation by removing intrinsic camera blur and noise. 
+        \item The correction is computed by deconvolving $R(D_\theta v)$ with a small symmetric kernel via conjugate–gradient descent.
+        \item If the corrected autocorrelation becomes non‑positive near the origin, the compensation is rejected to avoid artefacts.
     \end{itemize}
+\end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/autocorr.png}
+        \caption{Initial autocorrelation before compensation for different angles.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/autocorr_compensated.png}
+        \caption{Autocorrelation after compensation for different angles.}
+    \end{figure}
 \end{frame}
 
 \begin{frame}{Initial Support Estimation}
@@ -131,6 +176,15 @@
         \item Ensures coherent support across all projection directions.
     \end{itemize}
 \end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est/initial_support.png}
+        \caption{Minimum of autocorrelation (red) and estimated support (blue).}
+    \end{figure}
+\end{frame}
+
 
 \begin{frame}{Power spectrum estimation}
     \[
@@ -146,6 +200,28 @@
     \end{itemize}
 \end{frame} 
 
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/power_spectrum_iteration_0.png}
+        \caption{Estimated power spectrum modulus of the blur kernel. (Iteration 0)}
+    \end{figure}
+\end{frame} 
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/power_spectrum_iteration_1.png}
+        \caption{Estimated power spectrum modulus of the blur kernel. (Iteration 1)}
+    \end{figure}
+\end{frame} 
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/power_spectrum_iteration_2.png}
+        \caption{Estimated power spectrum modulus of the blur kernel. (Iteration 2)}
+    \end{figure}
+\end{frame} 
+
 \begin{frame}{Phase retrieval and kernel estimation}
     \begin{itemize}
         \item Random phases $\phi(\xi)$ sampled to reconstruct candidate kernels:
@@ -153,59 +229,376 @@
         k = \mathcal{F}^{-1}\left(|\widehat{k}(\xi)| e^{i\phi(\xi)}\right)
         \]
         \item Constraints applied: positivity, compact support, normalization.
-        \item Best candidate chosen by TV-deconvolution PSNR score.
+        \item Best candidate chosen by TV-deconvolution by scoring on the estimated kernel and its symetric version.
+    \end{itemize} 
+\end{frame}
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/kernel_iteration_0.png}
+        \caption{Estimated kernel after phase retrieval. (Iteration 0)}
+    \end{figure}
+\end{frame} 
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/reestimated_support_iteration_0.png}
+        \caption{Re-estimated support after phase retrieval. (Iteration 0)}
+    \end{figure}
+\end{frame} 
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/kernel_iteration_1.png}
+        \caption{Estimated kernel after phase retrieval. (Iteration 1)}
+    \end{figure}
+\end{frame} 
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/reestimated_support_iteration_1.png}
+        \caption{Re-estimated support after phase retrieval. (Iteration 1)}
+    \end{figure}
+\end{frame} 
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/kernel_iteration_2.png}
+        \caption{Estimated kernel after phase retrieval. (Iteration 2)}
+    \end{figure}
+\end{frame} 
+
+\begin{frame}{}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.8\linewidth]{../kernel_est_bis/reestimated_support_iteration_2.png}
+        \caption{Re-estimated support after phase retrieval. (Iteration 2)}
+    \end{figure}
+\end{frame} 
+
+
+\begin{frame}{Limitations of Kernel Estimation Method}
+    \begin{itemize}
+        \item Assumes spatially invariant blur; struggles with non-uniform blur.
+        \item Sensitive to noise; high noise can degrade kernel estimates.
+        \item Relies on accurate prior model; deviations can lead to errors.
+        \item Phase retrieval may yield suboptimal kernels due to random initialization.
+        \item Computationally intensive due to multiple iterations and Fourier transforms.
     \end{itemize}
 \end{frame}
 
 
-\begin{frame}{TV Deconvolution}
+
+
+\section{TV–deconvolution}
+
+\begin{frame}{TV-deconvolution problem}
+    We solve the TV-regularised deconvolution problem:
     \[
-    \hat{u} = \arg\min_u 
-    \frac12 \|k*u - v\|_2^2 
-    + \lambda \|\nabla u\|_1
+        \hat{u} = \arg\min_u \; \|k * u - v\|_2^2 + \lambda \|\nabla u\|_1.
     \]
+    Using the split-Bregman method (\cite{goldsb}, \cite{tvipol}), introduce an auxiliary variable $d$ enforcing $d = \nabla u$ such that : 
     \[
-    \text{Split-Bregman iterations:}
-    \]
-    \[
-    u^{k+1} = \arg\min_u 
-    \frac12\|k*u - v\|_2^2 
-    + \frac{\gamma}{2}\|\nabla u - d^k + b^k\|_2^2
-    \]
-    \[
-    d^{k+1} = \operatorname{shrink}(\nabla u^{k+1} + b^k,\, \lambda/\gamma)
-    \]
-    \[
-    b^{k+1} = b^k + (\nabla u^{k+1} - d^{k+1})
+        (\hat{u}, \hat{d}) = \arg\min_{u,d} \; \|k * u - v\|_2^2 + \lambda \|d\|_1 + \frac{\gamma}{2} \|d - \nabla u\|_2^2.
     \]
     \begin{itemize}
-        \item Solved in Fourier domain using symmetric or circular boundary conditions.
-        \item TV prior preserves edges and limits ringing.
-        \item Convergence when $\|u^{k+1}-u^k\| < \eta$.
+        \item $\lambda$: regularization parameter balancing data fidelity and smoothness.
+        \item $\gamma$: penalty parameter enforcing $d \approx \nabla u$.
     \end{itemize}
+
 \end{frame}
 
-\section{Kernel Estimation}
-
-\begin{frame}{Estimation Principle}
+\begin{frame}{Split-Bregman method}
+    \textbf{Iterative updates:}
     \begin{itemize}
-        \item Analysis of the directional spectrum of the image.
-        \item Use of directional derivatives.
-        \item Recovery of the Fourier transform modulus of the kernel.
-        \item Kernel reconstruction via random phases.
+        \item \textbf{$u$-update:} closed-form in Fourier domain (with symmetric boundary conditions)
+        \[
+            u^{k+1} = \mathcal{F}^{-1}\left( \frac{\frac{\lambda}{\gamma} \overline{\mathcal{F}(k)}\,\mathcal{F}(\text{E}v) - \mathcal{F}(\text{E}\operatorname{div}(d^k - b^k))}{\frac{\lambda}{\gamma}|\mathcal{F}(k)|^2 - \mathcal{F}(\Delta)} \right).
+        \]
+        \item \textbf{$d$-update:} soft-thresholding (shrinkage)
+        \[
+            d^{k+1} = \operatorname{shrink}(\nabla u^{k+1} + b^k,\; 1/\gamma).
+        \]
+        \item \textbf{Bregman update:}
+        \[
+            b^{k+1} = b^k + (\nabla u^{k+1} - d^{k+1}).
+        \]
     \end{itemize}
+
+    \textbf{Stopping criterion:}
+    \[
+        \|u^{k+1} - u^k\|_2 < \eta.
+    \]
+    TV preserves edges and reduces ringing, while boundary conditions strongly affect artefacts.
 \end{frame}
 
-\section{Results}
-
-\begin{frame}{Types of Experiments Conducted}
+\begin{frame}{Limitations of TV–deconvolution}
     \begin{itemize}
-        \item Validation with known vs estimated blur.
-        \item Robustness to noise.
-        \item Influence of boundary conditions.
-        \item Effect of kernel size.
-        \item Tests on real images.
+        \item TV regularization can lead to staircasing and border artefacts effects in smooth regions.
+        \item Choice of $\lambda$ and $\gamma$ is critical for balancing noise reduction and detail preservation and needs tuning via cross-validation
+        \item Computationally intensive due to iterative nature; convergence speed depends on parameters. (However in practice it converges in ~10 iterations)
+        \item Sensitive to kernel estimation errors; inaccurate kernels degrade deconvolution quality.
+        \item Sensitive to noise; high noise levels can lead to suboptimal results despite TV regularization.
+    \end{itemize}
+    
+\end{frame}
+
+\section{Practical evaluations and results}
+
+\subsection{TV–deconvolution}
+
+\begin{frame}{Symmetric vs Circular boundary conditions (True Kernel)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/circular_vs_symmetric.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with true kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Symmetric vs Circular boundary conditions (Estimated Kernel)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/circular_vs_symmetric_estimated.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise (Symmetric BC)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/tvdeconv_noise_test_symm.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise (Circular BC)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/tvdeconv_noise_test_circ.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Hyperparameter tuning MAP}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/hyperparameter_tuning.png}
+        \caption{PSNR MAP of TV-deconv for different couples of ($\lambda$, $\gamma$).}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Hyperparameter tuning examples ($\lambda = 100$)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/param1.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Hyperparameter tuning examples ($\lambda = 1000$)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/param2.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Hyperparameter tuning examples ($\lambda = 2000$)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/param3.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Hyperparameter tuning examples ($\lambda = 10000$)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/param4.png}
+        \caption{Comparison of symmetric and circular boundary conditions in TV-deconvolution with estimated kernel.}
+    \end{figure}
+\end{frame}
+
+
+\subsection{Kernel estimation}
+
+\begin{frame}{Robustness to noise}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/noise1.png}
+        \caption{Estimated kernels for different noise levels. (std = 0)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/noise2.png}
+        \caption{Estimated kernels for different noise levels. (std = 1)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/noise3.png}
+        \caption{Estimated kernels for different noise levels. (std = 5)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/noise4.png}
+        \caption{Estimated kernels for different noise levels. (std = 10)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to noise}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/noise5.png}
+        \caption{Estimated kernels for different noise levels. (std = 20)}
+    \end{figure}
+\end{frame}
+
+
+\begin{frame}{Robustness to kernel size}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/size1.png}
+        \caption{Estimated kernels for different kernel sizes. (size = 15)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to kernel size}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/size2.png}
+        \caption{Estimated kernels for different kernel sizes. (size = 25)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to kernel size}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/size3.png}
+        \caption{Estimated kernels for different kernel sizes. (size = 35)}
+    \end{figure}
+\end{frame}
+
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress1.png}
+        \caption{Estimated kernels for different compression levels. (png)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress2.png}
+        \caption{Estimated kernels for different compression levels. (quality = 75)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress3.png}
+        \caption{Estimated kernels for different compression levels. (quality = 50)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress4.png}
+        \caption{Estimated kernels for different compression levels. (quality = 25)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress5.png}
+        \caption{Estimated kernels for different compression levels. (quality = 10)}
+    \end{figure}
+\end{frame}
+
+
+\begin{frame}{Test on real images}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/real1.png}
+        \caption{Estimated kernel from a real blurred image.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Test on real images}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/real2.png}
+        \caption{Estimated kernel from a real blurred image.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Test on real images}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/real3.png}
+        \caption{Estimated kernel from a real blurred image.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Test on real images}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/real4.png}
+        \caption{Estimated kernel from a real blurred image. (Exposure = 1/5)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Test on real images}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/real5.png}
+        \caption{Estimated kernel from a real blurred image. (Exposure = 1/5) }
+    \end{figure}
+\end{frame}
+
+
+
+\begin{frame}{Robustness to compression}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{../figures/compress4.png}
+        \caption{Estimated kernels for different compression levels. (png)}
+    \end{figure}
+\end{frame}
+
+
+\begin{frame}{Possible improvements}
+    \begin{itemize}
+        \item Using hyperlaplacian priors for better edge preservation. (\cite{hyperlaplacian}, \cite{hyperlap_blind})
+        \item Pre-denoising (TV-Denoising) before autocorrelation / regularization for high frequencies; (noise reduction).
+        \item Estimating support by a more robust method (second derivatives for instances).
+        \item Using a more advanced phase retrieval method (e.g., Gerchberg-Saxton algorithm).
+        \item Adaptative adjustment of $\alpha$ in compensation filter.
     \end{itemize}
 \end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+    \tiny
+    \printbibliography
+\end{frame}
+
 
 \end{document}

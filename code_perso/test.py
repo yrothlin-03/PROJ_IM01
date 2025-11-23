@@ -1,5 +1,5 @@
 from kernel_estimation_bis import estime_noyau, centrer_le_noyau
-# from kernel_estimation import blur_kernel_estimation
+from kernel_estimation import blur_kernel_estimation
 # from kernel_estimation import center_kernel
 from tv_deconv import tv_deconv as tv_deconv_symm
 from tvdeconv import tv_deconv_circular
