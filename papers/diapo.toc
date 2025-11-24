@@ -1,0 +1,7 @@
+\beamer@sectionintoc {1}{Introduction}{3}{0}{1}
+\beamer@sectionintoc {2}{Mathematical Blur Model}{6}{0}{2}
+\beamer@sectionintoc {3}{Blind Kernel Estimation}{7}{0}{3}
+\beamer@sectionintoc {4}{TV–deconvolution}{22}{0}{4}
+\beamer@sectionintoc {5}{Practical evaluations and results}{24}{0}{5}
+\beamer@subsectionintoc {5}{1}{TV–deconvolution}{24}{0}{5}
+\beamer@subsectionintoc {5}{2}{Kernel estimation}{29}{0}{5}

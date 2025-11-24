@@ -1,0 +1,242 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nyt/global//global/global/global}
+    \entry{gf}{article}{}{}
+      \name{author}{3}{}{%
+        {{un=0,uniquepart=base,hash=51c93f45d5be1697d18a5a9c0d4b45da}{%
+           family={Anger},
+           familyi={A\bibinitperiod},
+           given={Jérémy},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=a20c329018b61f5350dea7c0487fbc42}{%
+           family={Facciolo},
+           familyi={F\bibinitperiod},
+           given={Gabriele},
+           giveni={G\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=0d2450de2cba54e2ea05ebedcefd8935}{%
+           family={Delbracio},
+           familyi={D\bibinitperiod},
+           given={Mauricio},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{fullhash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{fullhashraw}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{bibnamehash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{authorbibnamehash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{authornamehash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{authorfullhash}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \strng{authorfullhashraw}{68d9e2dc55cecd424f7d6a9164e23d6c}
+      \field{sortinit}{A}
+      \field{sortinithash}{2f401846e2029bad6b3ecc16d50031e2}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Image Processing On Line}
+      \field{month}{09}
+      \field{title}{Estimating an Image's Blur Kernel Using Natural Image Statistics, and Deblurring it: An Analysis of the Goldstein-Fattal Method}
+      \field{volume}{8}
+      \field{year}{2018}
+      \field{pages}{282\bibrangedash 304}
+      \range{pages}{23}
+      \verb{doi}
+      \verb 10.5201/ipol.2018.211
+      \endverb
+    \endentry
+    \entry{hyperlap_blind}{article}{}{}
+      \name{author}{3}{}{%
+        {{un=0,uniquepart=base,hash=4ee5a37925963f099d96c2768c9d70c7}{%
+           family={Kong},
+           familyi={K\bibinitperiod},
+           given={Jun},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=de6ffb58185c6be16844c48d86466f89}{%
+           family={Lu},
+           familyi={L\bibinitperiod},
+           given={Kesai},
+           giveni={K\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=20fcfef30fa428a84b359e4bf906e7f3}{%
+           family={Jiang},
+           familyi={J\bibinitperiod},
+           given={Min},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{fullhash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{fullhashraw}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{bibnamehash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{authorbibnamehash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{authornamehash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{authorfullhash}{dce1dc60a590bd74c7c1680b9576a476}
+      \strng{authorfullhashraw}{dce1dc60a590bd74c7c1680b9576a476}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Procedia Computer Science}
+      \field{month}{12}
+      \field{title}{A New Blind Deblurring Method via Hyper-laplacian Prior}
+      \field{volume}{107}
+      \field{year}{2017}
+      \field{pages}{789\bibrangedash 795}
+      \range{pages}{7}
+      \verb{doi}
+      \verb 10.1016/j.procs.2017.03.170
+      \endverb
+    \endentry
+    \entry{hyperlaplacian}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{un=0,uniquepart=base,hash=6e4c62612fa904e2c1c6c00006ccc142}{%
+           family={Krishnan},
+           familyi={K\bibinitperiod},
+           given={Dilip},
+           giveni={D\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=a6784304d1cc890b2cb6c6c7f2f3fd76}{%
+           family={Fergus},
+           familyi={F\bibinitperiod},
+           given={Rob},
+           giveni={R\bibinitperiod},
+           givenun=0}}%
+      }
+      \name{editor}{5}{}{%
+        {{hash=419350ebbeb4eba5351469f378dee007}{%
+           family={Bengio},
+           familyi={B\bibinitperiod},
+           given={Y.},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=45a34b645c5e7fbd7020b9c3bd59f707}{%
+           family={Schuurmans},
+           familyi={S\bibinitperiod},
+           given={D.},
+           giveni={D\bibinitperiod}}}%
+        {{hash=936a431ac244b72d55ef1fb1188f78d7}{%
+           family={Lafferty},
+           familyi={L\bibinitperiod},
+           given={J.},
+           giveni={J\bibinitperiod}}}%
+        {{hash=c6a49bfb8c543aca0fa10ce45222eb3f}{%
+           family={Williams},
+           familyi={W\bibinitperiod},
+           given={C.},
+           giveni={C\bibinitperiod}}}%
+        {{hash=8ee7803367fd1973cadc48f464f97a8c}{%
+           family={Culotta},
+           familyi={C\bibinitperiod},
+           given={A.},
+           giveni={A\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Curran Associates, Inc.}%
+      }
+      \strng{namehash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{fullhash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{fullhashraw}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{bibnamehash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{authorbibnamehash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{authornamehash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{authorfullhash}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{authorfullhashraw}{f0b16f618b458a82a1e5c32a2aea2a5c}
+      \strng{editorbibnamehash}{2add44768609f802d4063b5c073cffb7}
+      \strng{editornamehash}{2add44768609f802d4063b5c073cffb7}
+      \strng{editorfullhash}{5ba65bf3c9eeaa9132371a7bf34f1eb5}
+      \strng{editorfullhashraw}{5ba65bf3c9eeaa9132371a7bf34f1eb5}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Advances in Neural Information Processing Systems}
+      \field{title}{Fast Image Deconvolution using Hyper-Laplacian Priors}
+      \field{volume}{22}
+      \field{year}{2009}
+      \verb{urlraw}
+      \verb https://proceedings.neurips.cc/paper_files/paper/2009/file/3dd48ab31d016ffcbf3314df2b3cb9ce-Paper.pdf
+      \endverb
+      \verb{url}
+      \verb https://proceedings.neurips.cc/paper_files/paper/2009/file/3dd48ab31d016ffcbf3314df2b3cb9ce-Paper.pdf
+      \endverb
+    \endentry
+    \entry{MAP_bay}{inproceedings}{}{}
+      \name{author}{4}{}{%
+        {{un=0,uniquepart=base,hash=82496304565653b9e305c3a0b5547e14}{%
+           family={Whyte},
+           familyi={W\bibinitperiod},
+           given={Oliver},
+           giveni={O\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=928b303d802c0389256c746430ef1935}{%
+           family={Sivic},
+           familyi={S\bibinitperiod},
+           given={Josef},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=c72fc39e94030f67717052309266a44d}{%
+           family={Zisserman},
+           familyi={Z\bibinitperiod},
+           given={Andrew},
+           giveni={A\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=ee672c13ddea8aa3bc5a45024cfd7354}{%
+           family={Ponce},
+           familyi={P\bibinitperiod},
+           given={Jean},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{037dd47fd006c76407dba935ffc87228}
+      \strng{fullhash}{8edae5a0d24f0b7965218ba9326a9a72}
+      \strng{fullhashraw}{8edae5a0d24f0b7965218ba9326a9a72}
+      \strng{bibnamehash}{037dd47fd006c76407dba935ffc87228}
+      \strng{authorbibnamehash}{037dd47fd006c76407dba935ffc87228}
+      \strng{authornamehash}{037dd47fd006c76407dba935ffc87228}
+      \strng{authorfullhash}{8edae5a0d24f0b7965218ba9326a9a72}
+      \strng{authorfullhashraw}{8edae5a0d24f0b7965218ba9326a9a72}
+      \field{sortinit}{W}
+      \field{sortinithash}{4315d78024d0cea9b57a0c6f0e35ed0d}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{2010 IEEE Computer Society Conference on Computer Vision and Pattern Recognition}
+      \field{title}{Non-uniform deblurring for shaken images}
+      \field{year}{2010}
+      \field{pages}{491\bibrangedash 498}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1109/CVPR.2010.5540175
+      \endverb
+      \keyw{Cameras;Kernel;Layout;Convolution;Solid modeling;Shape;Optical filters;Wiener filter;Image restoration;Statistics}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
