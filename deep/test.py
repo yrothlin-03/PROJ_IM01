@@ -10,7 +10,6 @@ img_name = "perso1.png"
 
 
 
-
 model = EVSSM()
 ckpt = torch.load("./deep/net_g_GoPro.pth", map_location="cpu")  
 model.load_state_dict(ckpt["params"], strict=True)

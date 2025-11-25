@@ -87,10 +87,15 @@
 \headcommand {\beamer@framepages {34}{34}}
 \headcommand {\slideentry {5}{2}{7}{35/35}{Kernel estimation}{0}}
 \headcommand {\beamer@framepages {35}{35}}
-\headcommand {\slideentry {5}{2}{8}{36/36}{Kernel estimation}{0}}
+\headcommand {\beamer@sectionpages {24}{35}}
+\headcommand {\beamer@subsectionpages {29}{35}}
+\headcommand {\sectionentry {6}{References}{36}{References}{0}}
+\headcommand {\slideentry {6}{0}{0}{36/36}{Kernel estimation}{0}}
 \headcommand {\beamer@framepages {36}{36}}
-\headcommand {\beamer@partpages {1}{36}}
-\headcommand {\beamer@subsectionpages {29}{36}}
-\headcommand {\beamer@sectionpages {24}{36}}
-\headcommand {\beamer@documentpages {36}}
-\headcommand {\gdef \inserttotalframenumber {36}}
+\headcommand {\slideentry {6}{0}{0}{36/37}{Kernel estimation}{0}}
+\headcommand {\beamer@framepages {36}{37}}
+\headcommand {\beamer@partpages {1}{37}}
+\headcommand {\beamer@subsectionpages {29}{37}}
+\headcommand {\beamer@sectionpages {24}{37}}
+\headcommand {\beamer@documentpages {37}}
+\headcommand {\gdef \inserttotalframenumber {37}}
