@@ -7,12 +7,12 @@ from EVSSM import EVSSM
 
 
 img_dir = "./data/" 
-img_name = "perso1.png"
+img_name = "arbres.png"
 
 
 
 model = EVSSM()
-ckpt = torch.load("./deep/net_g_GoPro.pth", map_location="cpu")  
+ckpt = torch.load("./deep/net_g_GoPro.pth", map_location="cuda" if torch.cuda.is_available() else "cpu")
 model.load_state_dict(ckpt["params"], strict=True)
 model.eval()
 
@@ -24,7 +24,12 @@ model.to(device)
 img = Image.open(f"{img_dir}{img_name}").convert("RGB")   
 x = F.to_tensor(img).unsqueeze(0).to(device) 
 print("x.shape before :", x.shape, x.dtype, x.device)
-x = Fnn.interpolate(x, scale_factor=0.5, mode="bilinear", align_corners=False)
+x = Fnn.interpolate(
+    x,
+    size=(1384, 1384),  
+    mode="bilinear",
+    align_corners=False,
+)
 print("x.shape after :", x.shape, x.dtype, x.device)
 print("Inferencing...")
 with torch.no_grad():
